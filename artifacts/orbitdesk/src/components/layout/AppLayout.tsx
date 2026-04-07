@@ -83,7 +83,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-sidebar-border">
+        <div className="p-4 border-t border-sidebar-border space-y-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9 border border-sidebar-border">
               <AvatarImage src={user.avatar || ""} />
@@ -95,6 +95,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <span className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</span>
               <span className="text-xs text-sidebar-foreground/60 truncate">{user.role}</span>
             </div>
+          </div>
+          <div className="pt-2 border-t border-sidebar-border/50 flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-sidebar-foreground/40">Powered by</span>
+              <div className="flex items-center gap-1">
+                <div className="w-3.5 h-3.5 rounded bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
+                  <span className="text-white font-bold text-[8px]">D</span>
+                </div>
+                <span className="text-[11px] font-semibold text-orange-400 tracking-wide">Dejoiy</span>
+              </div>
+            </div>
+            <span className="text-[9px] text-sidebar-foreground/30">&copy; {new Date().getFullYear()} Dejoiy. All rights reserved.</span>
           </div>
         </div>
       </aside>

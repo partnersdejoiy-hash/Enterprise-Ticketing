@@ -168,7 +168,7 @@ export default function Settings() {
                 <CardContent>
                   <div className="space-y-3 text-sm">
                     {[
-                      { label: "Platform", value: "OrbitDesk Enterprise v1.0" },
+                      { label: "Platform", value: "OrbitDesk Enterprise v1.0 by Dejoiy" },
                       { label: "Environment", value: "Production" },
                       { label: "Database", value: "PostgreSQL" },
                       { label: "API Version", value: "v0.1.0" },
