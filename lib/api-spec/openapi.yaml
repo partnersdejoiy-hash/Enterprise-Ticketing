@@ -3,20 +3,31 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: OrbitDesk Enterprise Ticketing System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: tickets
+    description: Ticket management
+  - name: departments
+    description: Department management
+  - name: users
+    description: User management
+  - name: comments
+    description: Ticket comments
+  - name: dashboard
+    description: Dashboard analytics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +35,431 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets:
+    get:
+      operationId: listTickets
+      tags: [tickets]
+      summary: List tickets
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, assigned, in_progress, waiting, resolved, closed]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, urgent]
+        - name: departmentId
+          in: query
+          schema:
+            type: integer
+        - name: assigneeId
+          in: query
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketListResponse"
+    post:
+      operationId: createTicket
+      tags: [tickets]
+      summary: Create a ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketBody"
+      responses:
+        "201":
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /tickets/{ticketId}:
+    get:
+      operationId: getTicket
+      tags: [tickets]
+      summary: Get ticket by ID
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketDetail"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTicket
+      tags: [tickets]
+      summary: Update ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketBody"
+      responses:
+        "200":
+          description: Ticket updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /tickets/{ticketId}/comments:
+    get:
+      operationId: listComments
+      tags: [comments]
+      summary: List comments for a ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: createComment
+      tags: [comments]
+      summary: Add comment to ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentBody"
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+
+  /departments:
+    get:
+      operationId: listDepartments
+      tags: [departments]
+      summary: List all departments
+      responses:
+        "200":
+          description: List of departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createDepartment
+      tags: [departments]
+      summary: Create department
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepartmentBody"
+      responses:
+        "201":
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /departments/{departmentId}:
+    get:
+      operationId: getDepartment
+      tags: [departments]
+      summary: Get department by ID
+      parameters:
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Department details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [super_admin, admin, manager, agent, employee, external]
+        - name: departmentId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get overall dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/department-stats:
+    get:
+      operationId: getDepartmentStats
+      tags: [dashboard]
+      summary: Get ticket stats by department
+      responses:
+        "200":
+          description: Department statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DepartmentStat"
+
+  /dashboard/recent-tickets:
+    get:
+      operationId: getRecentTickets
+      tags: [dashboard]
+      summary: Get recent ticket activity
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+
+  /dashboard/agent-performance:
+    get:
+      operationId: getAgentPerformance
+      tags: [dashboard]
+      summary: Get agent performance metrics
+      responses:
+        "200":
+          description: Agent performance data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentPerformance"
+
+  /dashboard/sla-overview:
+    get:
+      operationId: getSlaOverview
+      tags: [dashboard]
+      summary: Get SLA compliance overview
+      responses:
+        "200":
+          description: SLA overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlaOverview"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +470,503 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, manager, agent, employee, external]
+        departmentId:
+          type: integer
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - role
+        - isActive
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, manager, agent, employee, external]
+        departmentId:
+          type: integer
+          nullable: true
+      required:
+        - name
+        - email
+        - password
+        - role
+
+    UpdateUserBody:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, manager, agent, employee, external]
+        departmentId:
+          type: integer
+          nullable: true
+        isActive:
+          type: boolean
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        slaResponseHours:
+          type: integer
+        slaResolutionHours:
+          type: integer
+        agentCount:
+          type: integer
+        openTicketCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slaResponseHours
+        - slaResolutionHours
+        - agentCount
+        - openTicketCount
+        - createdAt
+
+    CreateDepartmentBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        slaResponseHours:
+          type: integer
+          default: 4
+        slaResolutionHours:
+          type: integer
+          default: 24
+      required:
+        - name
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticketNumber:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, assigned, in_progress, waiting, resolved, closed]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        departmentId:
+          type: integer
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        assigneeId:
+          type: integer
+          nullable: true
+        assigneeName:
+          type: string
+          nullable: true
+        createdById:
+          type: integer
+        createdByName:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        slaBreached:
+          type: boolean
+        slaDeadline:
+          type: string
+          format: date-time
+          nullable: true
+        commentCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ticketNumber
+        - subject
+        - description
+        - status
+        - priority
+        - createdById
+        - createdByName
+        - tags
+        - slaBreached
+        - commentCount
+        - createdAt
+        - updatedAt
+
+    TicketDetail:
+      allOf:
+        - $ref: "#/components/schemas/Ticket"
+        - type: object
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: "#/components/schemas/Comment"
+            history:
+              type: array
+              items:
+                $ref: "#/components/schemas/TicketHistory"
+          required:
+            - comments
+            - history
+
+    CreateTicketBody:
+      type: object
+      properties:
+        subject:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          default: medium
+        departmentId:
+          type: integer
+          nullable: true
+        assigneeId:
+          type: integer
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - subject
+        - description
+
+    UpdateTicketBody:
+      type: object
+      properties:
+        subject:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, assigned, in_progress, waiting, resolved, closed]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        departmentId:
+          type: integer
+          nullable: true
+        assigneeId:
+          type: integer
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    TicketListResponse:
+      type: object
+      properties:
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ticket"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - tickets
+        - total
+        - page
+        - limit
+        - totalPages
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        content:
+          type: string
+        isInternal:
+          type: boolean
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        authorAvatar:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ticketId
+        - content
+        - isInternal
+        - authorId
+        - authorName
+        - createdAt
+
+    CreateCommentBody:
+      type: object
+      properties:
+        content:
+          type: string
+        isInternal:
+          type: boolean
+          default: false
+      required:
+        - content
+
+    TicketHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        action:
+          type: string
+        oldValue:
+          type: string
+          nullable: true
+        newValue:
+          type: string
+          nullable: true
+        changedById:
+          type: integer
+        changedByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ticketId
+        - action
+        - changedById
+        - changedByName
+        - createdAt
+
+    DashboardStats:
+      type: object
+      properties:
+        totalTickets:
+          type: integer
+        openTickets:
+          type: integer
+        inProgressTickets:
+          type: integer
+        resolvedTickets:
+          type: integer
+        closedTickets:
+          type: integer
+        urgentTickets:
+          type: integer
+        slaBreachedTickets:
+          type: integer
+        avgResolutionHours:
+          type: number
+        ticketsCreatedToday:
+          type: integer
+        ticketsResolvedToday:
+          type: integer
+      required:
+        - totalTickets
+        - openTickets
+        - inProgressTickets
+        - resolvedTickets
+        - closedTickets
+        - urgentTickets
+        - slaBreachedTickets
+        - avgResolutionHours
+        - ticketsCreatedToday
+        - ticketsResolvedToday
+
+    DepartmentStat:
+      type: object
+      properties:
+        departmentId:
+          type: integer
+        departmentName:
+          type: string
+        openCount:
+          type: integer
+        resolvedCount:
+          type: integer
+        breachedCount:
+          type: integer
+        color:
+          type: string
+          nullable: true
+      required:
+        - departmentId
+        - departmentName
+        - openCount
+        - resolvedCount
+        - breachedCount
+
+    AgentPerformance:
+      type: object
+      properties:
+        agentId:
+          type: integer
+        agentName:
+          type: string
+        avatar:
+          type: string
+          nullable: true
+        resolvedCount:
+          type: integer
+        avgResolutionHours:
+          type: number
+        activeTickets:
+          type: integer
+        satisfactionScore:
+          type: number
+          nullable: true
+      required:
+        - agentId
+        - agentName
+        - resolvedCount
+        - avgResolutionHours
+        - activeTickets
+
+    SlaOverview:
+      type: object
+      properties:
+        totalWithSla:
+          type: integer
+        compliant:
+          type: integer
+        breached:
+          type: integer
+        atRisk:
+          type: integer
+        complianceRate:
+          type: number
+      required:
+        - totalWithSla
+        - compliant
+        - breached
+        - atRisk
+        - complianceRate

@@ -1,0 +1,493 @@
+You are a senior SaaS architect and full-stack engineer.
+
+Build a COMPLETE enterprise-grade ticketing SaaS platform similar to Zendesk / Freshdesk but more customizable for internal enterprise operations.
+
+The product must be scalable, modular, and production-ready.
+
+Name of system: OrbitDesk Enterprise Ticketing System
+
+The platform will be used by a large company with multiple departments such as:
+
+HR
+IT
+Background Verification (BGV)
+Admin
+Legal
+Finance
+Operations
+Customer Support
+
+The system must support ticket creation from multiple sources including:
+
+1. Employee Portal
+2. Email to Ticket
+3. Website Form Submission
+4. Admin Manual Creation
+5. API integrations
+
+------------------------------------------------
+
+CORE TECH STACK
+
+Frontend
+Next.js 14
+TypeScript
+TailwindCSS
+ShadCN UI
+Framer Motion animations
+
+Backend
+Node.js
+Express.js
+
+Database
+PostgreSQL
+
+ORM
+Prisma
+
+Auth
+JWT + Role based access control
+
+Email Service
+SMTP compatible (Zimbra / Gmail / Sendgrid)
+
+Realtime updates
+Socket.io
+
+Deployment ready
+Docker support
+Vercel frontend
+Backend Node server
+
+------------------------------------------------
+
+MAIN MODULES
+
+1️⃣ Authentication System
+
+Secure login system.
+
+Roles:
+
+Super Admin
+Admin
+Manager
+Agent
+Employee
+External Client
+
+Features:
+
+SSO Ready
+2FA optional
+Password reset
+Session management
+
+
+------------------------------------------------
+
+2️⃣ Role Based Access Control
+
+Super Admin
+- Full system control
+- Create organizations
+- Manage departments
+- Manage admins
+- System settings
+
+Admin
+- Manage teams
+- Manage agents
+- Assign tickets
+- View analytics
+
+Manager
+- Manage department tickets
+- Assign agents
+- SLA monitoring
+
+Agent
+- Work on tickets
+- Update status
+- Internal notes
+
+Employee
+- Create tickets
+- Track tickets
+- Comment on tickets
+
+External User
+- Can only track tickets created by them
+
+
+------------------------------------------------
+
+3️⃣ Ticket System
+
+Ticket fields:
+
+Ticket ID
+Subject
+Description
+Department
+Priority
+Status
+Assigned Agent
+Created By
+Created For
+Attachments
+Tags
+Internal Notes
+Conversation Thread
+SLA Status
+Created Time
+Updated Time
+
+Ticket Status:
+
+Open
+Assigned
+In Progress
+Waiting
+Resolved
+Closed
+
+Priority Levels
+
+Low
+Medium
+High
+Urgent
+
+
+------------------------------------------------
+
+4️⃣ Ticket Creation Channels
+
+EMPLOYEE PORTAL
+
+Employees can submit tickets for:
+
+IT support
+HR request
+Employment verification
+Background verification
+Admin request
+Finance request
+
+EMAIL TO TICKET
+
+If someone sends email to:
+
+support@company.com
+bgv@company.com
+hr@company.com
+it@company.com
+
+The system automatically:
+
+Creates a ticket
+Detects department
+Assigns team
+Notifies agents
+
+Use IMAP email parser.
+
+
+------------------------------------------------
+
+5️⃣ WEBSITE FORM INTEGRATION
+
+Create API endpoints:
+
+POST /api/tickets/bgv
+POST /api/tickets/employment-verification
+POST /api/tickets/support
+
+If someone fills a form on company website for:
+
+Background Verification
+
+Create ticket in BGV queue.
+
+If someone fills Employment Verification form
+
+Create ticket in HR queue.
+
+Automatically notify department agents.
+
+
+------------------------------------------------
+
+6️⃣ AUTO ASSIGNMENT ENGINE
+
+Tickets automatically assigned based on:
+
+Department
+Agent workload
+Round robin assignment
+Availability
+
+Example:
+
+BGV team → bgv department
+HR team → hr department
+IT team → it department
+
+
+------------------------------------------------
+
+7️⃣ EMAIL NOTIFICATION SYSTEM
+
+SMTP integration.
+
+Emails must trigger when:
+
+Ticket created
+Ticket assigned
+Ticket updated
+Ticket commented
+Ticket resolved
+
+Recipients:
+
+Ticket creator
+Person ticket created for
+Assigned agent
+Department manager
+
+Email templates must be HTML styled.
+
+
+------------------------------------------------
+
+8️⃣ REALTIME UPDATES
+
+Use WebSockets.
+
+Users should see:
+
+Live ticket updates
+Live comments
+Status updates
+
+
+------------------------------------------------
+
+9️⃣ INTERNAL CHAT & NOTES
+
+Agents can add:
+
+Internal notes
+Private comments
+Public replies
+
+
+------------------------------------------------
+
+🔟 ATTACHMENT SYSTEM
+
+Upload files
+
+Allowed:
+
+PDF
+Images
+Documents
+
+
+------------------------------------------------
+
+1️⃣1️⃣ SLA MANAGEMENT
+
+Set SLA rules:
+
+Response time
+Resolution time
+
+Example:
+
+IT tickets → 4 hours
+HR tickets → 24 hours
+BGV tickets → 48 hours
+
+
+------------------------------------------------
+
+1️⃣2️⃣ ADMIN DASHBOARD
+
+Super Admin dashboard includes:
+
+System overview
+Tickets per department
+Resolution time metrics
+Agent performance
+SLA compliance
+Pending tickets
+Active users
+
+Charts using Recharts.
+
+
+------------------------------------------------
+
+1️⃣3️⃣ UI DESIGN
+
+Make UI look like:
+
+Zendesk
+Linear
+Notion
+HubSpot
+
+Use:
+
+Dark + Light mode
+Beautiful gradients
+Glassmorphism cards
+Modern dashboards
+
+
+------------------------------------------------
+
+1️⃣4️⃣ PAGES
+
+Public
+
+Login
+Forgot password
+
+Employee
+
+Dashboard
+Create Ticket
+My Tickets
+Notifications
+Profile
+
+Agent
+
+Agent Dashboard
+Assigned Tickets
+Ticket Details
+Internal Notes
+
+Admin
+
+Admin Dashboard
+Departments
+Agents
+Ticket Management
+Reports
+Email Settings
+Automation Rules
+
+Super Admin
+
+System Settings
+Organization Settings
+SMTP configuration
+API keys
+Audit logs
+
+
+------------------------------------------------
+
+1️⃣5️⃣ DATABASE MODELS
+
+Create Prisma models for:
+
+User
+Role
+Department
+Ticket
+TicketComment
+TicketAttachment
+TicketHistory
+EmailLog
+Notification
+SLA
+AutomationRule
+
+
+------------------------------------------------
+
+1️⃣6️⃣ API STRUCTURE
+
+/auth
+/users
+/tickets
+/departments
+/attachments
+/comments
+/notifications
+/admin
+/automation
+
+
+------------------------------------------------
+
+1️⃣7️⃣ SECURITY
+
+Rate limiting
+CSRF protection
+Input validation
+Audit logs
+
+
+------------------------------------------------
+
+1️⃣8️⃣ EXTRA FEATURES
+
+Ticket search
+Advanced filters
+Saved views
+Bulk actions
+Tags
+Knowledge base
+
+
+------------------------------------------------
+
+1️⃣9️⃣ MULTI-TENANT SAAS SUPPORT
+
+Support multiple companies.
+
+Each organization has:
+
+Users
+Departments
+Tickets
+
+
+------------------------------------------------
+
+2️⃣0️⃣ FINAL REQUIREMENTS
+
+The system must be:
+
+Production ready
+Well structured
+Fully typed
+Clean UI
+Scalable architecture
+Commented code
+Docker ready
+Deployment guide included
+
+
+------------------------------------------------
+
+Finally generate:
+
+Full folder structure
+Database schema
+Backend APIs
+Frontend pages
+Admin dashboards
+Email templates
+Ticket automation logic
+Deployment guide
+
+Build the entire working system.

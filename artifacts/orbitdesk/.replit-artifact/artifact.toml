@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "OrbitDesk - Enterprise Ticketing"
+version = "1.0.0"
+id = "artifacts/orbitdesk"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23387
+
+[services.development]
+run = "pnpm --filter @workspace/orbitdesk run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/orbitdesk", "run", "build" ]
+publicDir = "artifacts/orbitdesk/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23387"
+BASE_PATH = "/"
