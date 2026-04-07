@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
@@ -46,8 +46,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuthStore();
 
+  const [headerSearch, setHeaderSearch] = useState("");
+
   const isPrivileged = user?.role === "super_admin" || user?.role === "admin" ||
     user?.departmentName?.toLowerCase() === "it";
+
+  const handleHeaderSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && headerSearch.trim()) {
+      setLocation(`/tickets?q=${encodeURIComponent(headerSearch.trim())}`);
+      setHeaderSearch("");
+    }
+  };
 
   const navItems = allNavItems.filter((item) => {
     if (!item.roles) return true;
@@ -141,8 +150,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search tickets, users..."
+                placeholder="Search tickets… press Enter"
                 className="w-full bg-muted/50 pl-9 border-none focus-visible:ring-1 focus-visible:bg-background"
+                value={headerSearch}
+                onChange={(e) => setHeaderSearch(e.target.value)}
+                onKeyDown={handleHeaderSearch}
               />
             </div>
           </div>

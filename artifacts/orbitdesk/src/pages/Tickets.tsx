@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useLocation } from "wouter";
+import React, { useState, useEffect } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import { useListTickets, useListDepartments } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -56,12 +56,23 @@ function formatDate(dateStr: string) {
 
 export default function Tickets() {
   const [, setLocation] = useLocation();
-  const [search, setSearch] = useState("");
+  const queryString = useSearch();
+  const initialSearch = new URLSearchParams(queryString).get("q") ?? "";
+
+  const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState<string>("");
   const [priority, setPriority] = useState<string>("");
   const [departmentId, setDepartmentId] = useState<string>("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    const q = new URLSearchParams(queryString).get("q") ?? "";
+    if (q) {
+      setSearch(q);
+      setPage(1);
+    }
+  }, [queryString]);
 
   const { data, isLoading, refetch } = useListTickets({
     status: status || undefined,
