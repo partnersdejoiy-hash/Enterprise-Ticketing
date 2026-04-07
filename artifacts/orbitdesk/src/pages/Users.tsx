@@ -11,10 +11,19 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2 } from "lucide-react";
+import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2, MoreHorizontal, ShieldOff, ShieldCheck, Trash2, UserMinus } from "lucide-react";
+
+type UserRow = { id: number; name: string; email: string; role: string; departmentId: number | null; departmentName: string | null; isActive: boolean; createdAt: string };
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   super_admin: { label: "Super Admin", color: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldAlert },
@@ -137,9 +146,70 @@ export default function Users() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [actionUser, setActionUser] = useState<UserRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const canManage = user?.role === "super_admin" || user?.role === "admin" ||
     user?.departmentName?.toLowerCase() === "it";
+
+  const apiCall = async (method: string, path: string, body?: object) => {
+    const token = localStorage.getItem("auth_token");
+    const res = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!res.ok && res.status !== 204) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message ?? "Request failed");
+    }
+    return res.status === 204 ? null : res.json();
+  };
+
+  const handleToggleAccess = async (u: UserRow) => {
+    setActionLoading(true);
+    try {
+      await apiCall("PATCH", `/api/users/${u.id}`, { isActive: !u.isActive });
+      await refetchUsers();
+      toast({ title: u.isActive ? "Access revoked" : "Access restored", description: `${u.name}'s access has been ${u.isActive ? "revoked" : "restored"}.` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemoveFromDept = async (u: UserRow) => {
+    setActionLoading(true);
+    try {
+      await apiCall("PATCH", `/api/users/${u.id}`, { departmentId: null });
+      await refetchUsers();
+      toast({ title: "Removed from department", description: `${u.name} has been removed from ${u.departmentName}.` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!actionUser) return;
+    setActionLoading(true);
+    try {
+      await apiCall("DELETE", `/api/users/${actionUser.id}`);
+      await refetchUsers();
+      toast({ title: "User deleted", description: `${actionUser.name} has been permanently deleted.` });
+      setConfirmDelete(false);
+      setActionUser(null);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const { data: users, isLoading, refetch: refetchUsers } = useListUsers({
     role: roleFilter as "agent" | "employee" | "manager" | "admin" | "super_admin" | "external" | undefined || undefined,
@@ -206,6 +276,7 @@ export default function Users() {
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Department</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Joined</th>
+                {canManage && <th className="px-4 py-2.5 text-right font-medium text-muted-foreground text-xs uppercase tracking-wide">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -217,32 +288,34 @@ export default function Users() {
                     <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                    {canManage && <td className="px-4 py-3" />}
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={canManage ? 6 : 5} className="px-6 py-12 text-center text-muted-foreground">
                     <UserCircle2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     <p>No users found</p>
                   </td>
                 </tr>
-              ) : filtered.map((user) => {
-                const roleCfg = roleConfig[user.role] ?? { label: user.role, color: "bg-gray-100 text-gray-600", icon: User };
+              ) : filtered.map((u) => {
+                const roleCfg = roleConfig[u.role] ?? { label: u.role, color: "bg-gray-100 text-gray-600", icon: User };
                 const RoleIcon = roleCfg.icon;
-                const avatarColor = avatarColors[user.id % avatarColors.length];
+                const avatarColor = avatarColors[u.id % avatarColors.length];
+                const isSelf = u.id === user?.id;
 
                 return (
-                  <tr key={user.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                  <tr key={u.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${!u.isActive ? "opacity-60" : ""}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className={`${avatarColor} text-white text-xs font-medium`}>
-                            {user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                            {u.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium text-foreground">{user.name}</p>
-                          <p className="text-xs text-muted-foreground">{user.email}</p>
+                          <p className="font-medium text-foreground">{u.name}{isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}</p>
+                          <p className="text-xs text-muted-foreground">{u.email}</p>
                         </div>
                       </div>
                     </td>
@@ -253,18 +326,67 @@ export default function Users() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-muted-foreground">{user.departmentName ?? "—"}</span>
+                      <span className="text-muted-foreground">{u.departmentName ?? "—"}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${user.isActive ? "bg-green-100 text-green-700 border border-green-200" : "bg-gray-100 text-gray-600 border border-gray-200"}`}>
-                        {user.isActive ? "Active" : "Inactive"}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? "bg-green-100 text-green-700 border border-green-200" : "bg-red-100 text-red-600 border border-red-200"}`}>
+                        {u.isActive ? "Active" : "Revoked"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(user.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        {new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </span>
                     </td>
+                    {canManage && (
+                      <td className="px-4 py-3 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={actionLoading}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            {u.isActive ? (
+                              <DropdownMenuItem
+                                className="text-orange-600 focus:text-orange-700 focus:bg-orange-50 gap-2"
+                                onClick={() => handleToggleAccess(u as UserRow)}
+                                disabled={isSelf}
+                              >
+                                <ShieldOff className="h-4 w-4" />
+                                Revoke Access
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-green-600 focus:text-green-700 focus:bg-green-50 gap-2"
+                                onClick={() => handleToggleAccess(u as UserRow)}
+                              >
+                                <ShieldCheck className="h-4 w-4" />
+                                Restore Access
+                              </DropdownMenuItem>
+                            )}
+                            {u.departmentName && (
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => handleRemoveFromDept(u as UserRow)}
+                              >
+                                <UserMinus className="h-4 w-4" />
+                                Remove from {u.departmentName}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10 gap-2"
+                              onClick={() => { setActionUser(u as UserRow); setConfirmDelete(true); }}
+                              disabled={isSelf}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -275,6 +397,28 @@ export default function Users() {
 
       <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="users" onSuccess={refetchUsers} />
+
+      <AlertDialog open={confirmDelete} onOpenChange={(o) => { if (!o) { setConfirmDelete(false); setActionUser(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete user permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold">{actionUser?.name}</span> ({actionUser?.email}) and all their associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={actionLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

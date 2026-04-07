@@ -136,6 +136,18 @@ router.patch("/users/:userId", authMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/users/:userId", authMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    const deleted = await db.delete(usersTable).where(eq(usersTable.id, userId)).returning();
+    if (!deleted.length) { res.status(404).json({ error: "Not Found" }); return; }
+    res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, "Delete user error");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.post("/users/bulk", authMiddleware, async (req, res) => {
   try {
     const { rows } = req.body as { rows: Array<Record<string, string>> };
