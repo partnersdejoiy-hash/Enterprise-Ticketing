@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useListUsers, useCreateUser, useListDepartments } from "@workspace/api-client-react";
+import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -13,7 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Loader2 } from "lucide-react";
+import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2 } from "lucide-react";
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   super_admin: { label: "Super Admin", color: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldAlert },
@@ -135,11 +136,12 @@ export default function Users() {
   const [roleFilter, setRoleFilter] = useState("");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   const canManage = user?.role === "super_admin" || user?.role === "admin" ||
     user?.departmentName?.toLowerCase() === "it";
 
-  const { data: users, isLoading } = useListUsers({
+  const { data: users, isLoading, refetch: refetchUsers } = useListUsers({
     role: roleFilter as "agent" | "employee" | "manager" | "admin" | "super_admin" | "external" | undefined || undefined,
   });
 
@@ -156,10 +158,16 @@ export default function Users() {
             <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} users</p>
           </div>
           {canManage && (
-            <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
-              <Plus className="h-4 w-4" />
-              Add User
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowBulk(true)}>
+                <Upload className="h-4 w-4" />
+                Bulk Upload
+              </Button>
+              <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
+                <Plus className="h-4 w-4" />
+                Add User
+              </Button>
+            </div>
           )}
         </div>
 
@@ -266,6 +274,7 @@ export default function Users() {
       </div>
 
       <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="users" onSuccess={refetchUsers} />
     </AppLayout>
   );
 }

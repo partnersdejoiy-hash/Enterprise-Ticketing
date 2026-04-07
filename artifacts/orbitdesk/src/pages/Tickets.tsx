@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useListTickets, useListDepartments } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
-  Plus, Search, Filter, RefreshCw, AlertCircle, Clock, CheckCircle2, 
+  Plus, Upload, Search, Filter, RefreshCw, AlertCircle, Clock, CheckCircle2, 
   CircleDot, Pause, XCircle, ChevronLeft, ChevronRight 
 } from "lucide-react";
 
@@ -65,6 +66,7 @@ export default function Tickets() {
   const [departmentId, setDepartmentId] = useState<string>("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [showBulk, setShowBulk] = useState(false);
 
   useEffect(() => {
     const q = new URLSearchParams(queryString).get("q") ?? "";
@@ -109,10 +111,16 @@ export default function Tickets() {
             <h1 className="text-xl font-bold text-foreground">Tickets</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{total} total tickets</p>
           </div>
-          <Button onClick={() => setLocation("/tickets/new")} size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            New Ticket
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowBulk(true)}>
+              <Upload className="h-4 w-4" />
+              Bulk Upload
+            </Button>
+            <Button onClick={() => setLocation("/tickets/new")} size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              New Ticket
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -278,6 +286,7 @@ export default function Tickets() {
           </div>
         )}
       </div>
+      <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="tickets" onSuccess={refetch} />
     </AppLayout>
   );
 }

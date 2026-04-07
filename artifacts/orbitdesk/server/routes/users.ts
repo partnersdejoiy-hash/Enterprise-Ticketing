@@ -112,4 +112,57 @@ router.patch("/users/:userId", authMiddleware, async (req, res) => {
   }
 });
 
+router.post("/users/bulk", authMiddleware, async (req, res) => {
+  try {
+    const { rows } = req.body as { rows: Array<Record<string, string>> };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "Bad Request", message: "rows array required" });
+      return;
+    }
+
+    const departments = await db.select().from(departmentsTable);
+    const deptByName = new Map(departments.map((d) => [d.name.toLowerCase(), d]));
+
+    const created: number[] = [];
+    const errors: { row: number; error: string }[] = [];
+
+    const validRoles = ["employee", "agent", "manager", "admin", "super_admin", "external"];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const name = row.name?.trim();
+      const email = row.email?.trim().toLowerCase();
+      const password = row.password?.trim();
+
+      if (!name || !email || !password) {
+        errors.push({ row: i + 1, error: "name, email, and password are required" });
+        continue;
+      }
+
+      const role = validRoles.includes(row.role?.trim().toLowerCase()) ? row.role.trim().toLowerCase() : "employee";
+
+      let departmentId: number | null = null;
+      if (row.department_name?.trim()) {
+        const dept = deptByName.get(row.department_name.trim().toLowerCase());
+        if (dept) departmentId = dept.id;
+        else { errors.push({ row: i + 1, error: `Department "${row.department_name}" not found` }); continue; }
+      }
+
+      try {
+        const passwordHash = hashPassword(password);
+        const [user] = await db.insert(usersTable).values({ name, email, passwordHash, role, departmentId }).returning();
+        created.push(user.id);
+      } catch (e: any) {
+        if (e?.code === "23505") errors.push({ row: i + 1, error: `Email "${email}" already exists` });
+        else errors.push({ row: i + 1, error: "Insert failed" });
+      }
+    }
+
+    res.status(201).json({ created: created.length, errors });
+  } catch (err) {
+    console.error("Bulk create users error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

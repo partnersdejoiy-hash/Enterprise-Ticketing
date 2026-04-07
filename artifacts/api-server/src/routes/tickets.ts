@@ -387,4 +387,63 @@ router.post("/tickets/:ticketId/comments", authMiddleware, async (req: Authentic
   }
 });
 
+router.post("/tickets/bulk", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { rows } = req.body as { rows: Array<Record<string, string>> };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "Bad Request", message: "rows array required" });
+      return;
+    }
+
+    const departments = await db.select().from(departmentsTable);
+    const deptByName = new Map(departments.map((d) => [d.name.toLowerCase(), d]));
+    const users = await db.select().from(usersTable);
+    const userByEmail = new Map(users.map((u) => [u.email.toLowerCase(), u]));
+
+    const created: number[] = [];
+    const errors: { row: number; error: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const subject = row.subject?.trim();
+      if (!subject) { errors.push({ row: i + 1, error: "subject is required" }); continue; }
+
+      const priority = (["low", "medium", "high", "urgent"].includes(row.priority?.trim().toLowerCase()) ? row.priority.trim().toLowerCase() : "medium") as "low" | "medium" | "high" | "urgent";
+      const status = (["open", "in_progress", "pending", "resolved", "closed"].includes(row.status?.trim().toLowerCase()) ? row.status.trim().toLowerCase() : "open") as "open" | "in_progress" | "pending" | "resolved" | "closed";
+
+      let departmentId: number | null = null;
+      if (row.department_name?.trim()) {
+        const dept = deptByName.get(row.department_name.trim().toLowerCase());
+        if (dept) departmentId = dept.id;
+        else { errors.push({ row: i + 1, error: `Department "${row.department_name}" not found` }); continue; }
+      }
+
+      let assigneeId: number | null = null;
+      if (row.assignee_email?.trim()) {
+        const u = userByEmail.get(row.assignee_email.trim().toLowerCase());
+        if (u) assigneeId = u.id;
+      }
+
+      const tags = row.tags ? row.tags.split("|").map((t) => t.trim()).filter(Boolean) : [];
+      const ticketNumber = generateTicketNumber();
+
+      try {
+        const [ticket] = await db.insert(ticketsTable).values({
+          ticketNumber, subject, description: row.description?.trim() ?? "",
+          priority, status, departmentId, assigneeId,
+          createdById: req.user!.id, tags,
+        }).returning();
+        created.push(ticket.id);
+      } catch (e) {
+        errors.push({ row: i + 1, error: "Insert failed" });
+      }
+    }
+
+    res.status(201).json({ created: created.length, errors });
+  } catch (err) {
+    req.log.error({ err }, "Bulk create tickets error");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

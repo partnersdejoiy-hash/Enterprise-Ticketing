@@ -64,4 +64,42 @@ router.get("/departments/:departmentId", authMiddleware, async (req, res) => {
   }
 });
 
+router.post("/departments/bulk", authMiddleware, async (req, res) => {
+  try {
+    const { rows } = req.body as { rows: Array<Record<string, string>> };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "Bad Request", message: "rows array required" });
+      return;
+    }
+
+    const created: number[] = [];
+    const errors: { row: number; error: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const name = row.name?.trim();
+      if (!name) { errors.push({ row: i + 1, error: "name is required" }); continue; }
+
+      const slaResponseHours = parseInt(row.sla_response_hours ?? "4", 10) || 4;
+      const slaResolutionHours = parseInt(row.sla_resolution_hours ?? "24", 10) || 24;
+      const color = row.color?.trim() || "#3B82F6";
+
+      try {
+        const [dept] = await db.insert(departmentsTable).values({
+          name, description: row.description?.trim() ?? null, color,
+          slaResponseHours, slaResolutionHours,
+        }).returning();
+        created.push(dept.id);
+      } catch (e) {
+        errors.push({ row: i + 1, error: "Insert failed" });
+      }
+    }
+
+    res.status(201).json({ created: created.length, errors });
+  } catch (err) {
+    console.error("Bulk create departments error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

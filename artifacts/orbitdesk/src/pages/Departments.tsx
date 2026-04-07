@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useListDepartments, useCreateDepartment } from "@workspace/api-client-react";
+import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +14,7 @@ import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
   Monitor, Users, ShieldCheck, Building2, Scale,
-  DollarSign, Cog, Headphones, Clock, TicketIcon, UserCheck, Plus, Loader2
+  DollarSign, Cog, Headphones, Clock, TicketIcon, UserCheck, Plus, Upload, Loader2
 } from "lucide-react";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -127,7 +128,8 @@ function CreateDepartmentDialog({ open, onClose }: { open: boolean; onClose: () 
 export default function Departments() {
   const { user } = useAuthStore();
   const [showCreate, setShowCreate] = useState(false);
-  const { data: departments, isLoading } = useListDepartments();
+  const [showBulk, setShowBulk] = useState(false);
+  const { data: departments, isLoading, refetch: refetchDepts } = useListDepartments();
 
   const canManage = user?.role === "super_admin" || user?.role === "admin" ||
     user?.departmentName?.toLowerCase() === "it";
@@ -143,10 +145,16 @@ export default function Departments() {
             </p>
           </div>
           {canManage && (
-            <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
-              <Plus className="h-4 w-4" />
-              Add Department
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowBulk(true)}>
+                <Upload className="h-4 w-4" />
+                Bulk Upload
+              </Button>
+              <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
+                <Plus className="h-4 w-4" />
+                Add Department
+              </Button>
+            </div>
           )}
         </div>
 
@@ -222,6 +230,7 @@ export default function Departments() {
       </div>
 
       <CreateDepartmentDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="departments" onSuccess={refetchDepts} />
     </AppLayout>
   );
 }
