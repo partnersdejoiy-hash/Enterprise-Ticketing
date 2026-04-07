@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
+    "dev": "concurrently -k -n \"vite,api\" -c \"cyan,green\" \"vite --config vite.config.ts --host 0.0.0.0\" \"cross-env API_PORT=3001 tsx server/index.ts\"",
     "build": "vite build --config vite.config.ts",
+    "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -44,6 +45,8 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -75,6 +78,12 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@workspace/db": "workspace:*",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "cross-env": "^10.1.0",
+    "express": "^5.2.1",
+    "tsx": "catalog:",
     "zustand": "^5.0.12"
   }
 }
