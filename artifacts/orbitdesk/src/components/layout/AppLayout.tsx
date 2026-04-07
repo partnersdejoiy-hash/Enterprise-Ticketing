@@ -25,17 +25,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Tickets", href: "/tickets", icon: Ticket },
-  { name: "Departments", href: "/departments", icon: Building2 },
-  { name: "Users", href: "/users", icon: Users },
-  { name: "Settings", href: "/settings", icon: Settings },
+const allNavItems = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: null },
+  { name: "Tickets", href: "/tickets", icon: Ticket, roles: null },
+  { name: "Departments", href: "/departments", icon: Building2, roles: ["super_admin", "admin", "manager", "agent", "it"] },
+  { name: "Users", href: "/users", icon: Users, roles: ["super_admin", "admin"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },
 ];
+
+const roleLabels: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  manager: "Manager",
+  agent: "Agent",
+  employee: "Employee",
+  external: "External",
+};
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuthStore();
+
+  const isPrivileged = user?.role === "super_admin" || user?.role === "admin" ||
+    user?.departmentName?.toLowerCase() === "it";
+
+  const navItems = allNavItems.filter((item) => {
+    if (!item.roles) return true;
+    if (item.roles.includes(user?.role ?? "")) return true;
+    if (isPrivileged) return true;
+    return false;
+  });
   const logoutMutation = useLogout();
 
   const handleLogout = () => {
@@ -94,7 +113,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Avatar>
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</span>
-              <span className="text-xs text-sidebar-foreground/60 truncate">{user.role}</span>
+              <span className="text-xs text-sidebar-foreground/60 truncate">{roleLabels[user.role] ?? user.role}</span>
             </div>
           </div>
           <div className="pt-2 border-t border-sidebar-border/50 flex flex-col items-center gap-0.5">

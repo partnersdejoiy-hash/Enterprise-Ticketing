@@ -1,10 +1,19 @@
-import React from "react";
-import { useListDepartments } from "@workspace/api-client-react";
+import React, { useState } from "react";
+import { useListDepartments, useCreateDepartment } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Monitor, Users, ShieldCheck, Building2, Scale, 
-  DollarSign, Cog, Headphones, Clock, TicketIcon, UserCheck
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { useAuthStore } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Monitor, Users, ShieldCheck, Building2, Scale,
+  DollarSign, Cog, Headphones, Clock, TicketIcon, UserCheck, Plus, Loader2
 } from "lucide-react";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -17,17 +26,128 @@ const defaultColors = [
   "#EF4444", "#06B6D4", "#F97316", "#EC4899",
 ];
 
+const colorPalette = [
+  "#3B82F6", "#8B5CF6", "#F59E0B", "#10B981",
+  "#EF4444", "#06B6D4", "#F97316", "#EC4899",
+  "#6366F1", "#14B8A6", "#A855F7", "#F43F5E",
+];
+
+function CreateDepartmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const createDept = useCreateDepartment();
+
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    color: "#3B82F6",
+    slaResponseHours: "4",
+    slaResolutionHours: "24",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      toast({ title: "Validation error", description: "Department name is required", variant: "destructive" });
+      return;
+    }
+    createDept.mutate({
+      data: {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        color: form.color,
+        slaResponseHours: parseInt(form.slaResponseHours) || 4,
+        slaResolutionHours: parseInt(form.slaResolutionHours) || 24,
+      }
+    }, {
+      onSuccess: () => {
+        toast({ title: "Department created", description: `${form.name} has been added` });
+        queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+        setForm({ name: "", description: "", color: "#3B82F6", slaResponseHours: "4", slaResolutionHours: "24" });
+        onClose();
+      },
+      onError: (err: any) => {
+        toast({ title: "Failed to create department", description: err?.data?.message ?? "Something went wrong", variant: "destructive" });
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create New Department</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="d-name">Department Name <span className="text-red-500">*</span></Label>
+            <Input id="d-name" placeholder="e.g. Engineering" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="d-desc">Description</Label>
+            <Input id="d-desc" placeholder="Short description (optional)" value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Color</Label>
+            <div className="flex gap-2 flex-wrap">
+              {colorPalette.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, color: c }))}
+                  className={`w-7 h-7 rounded-full transition-transform ${form.color === c ? "scale-125 ring-2 ring-offset-1 ring-gray-400" : "hover:scale-110"}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="d-sla-res">Response SLA (hours)</Label>
+              <Input id="d-sla-res" type="number" min="1" placeholder="4" value={form.slaResponseHours} onChange={(e) => setForm(f => ({ ...f, slaResponseHours: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="d-sla-resol">Resolution SLA (hours)</Label>
+              <Input id="d-sla-resol" type="number" min="1" placeholder="24" value={form.slaResolutionHours} onChange={(e) => setForm(f => ({ ...f, slaResolutionHours: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={createDept.isPending}>
+              {createDept.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create Department
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Departments() {
+  const { user } = useAuthStore();
+  const [showCreate, setShowCreate] = useState(false);
   const { data: departments, isLoading } = useListDepartments();
+
+  const canManage = user?.role === "super_admin" || user?.role === "admin" ||
+    user?.departmentName?.toLowerCase() === "it";
 
   return (
     <AppLayout>
       <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-foreground">Departments</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {departments?.length ?? 0} departments configured
-          </p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Departments</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {departments?.length ?? 0} departments configured
+            </p>
+          </div>
+          {canManage && (
+            <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4" />
+              Add Department
+            </Button>
+          )}
         </div>
 
         {isLoading ? (
@@ -100,6 +220,8 @@ export default function Departments() {
           </div>
         )}
       </div>
+
+      <CreateDepartmentDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </AppLayout>
   );
 }

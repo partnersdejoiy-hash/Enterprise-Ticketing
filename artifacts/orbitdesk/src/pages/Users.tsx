@@ -1,11 +1,19 @@
 import React, { useState } from "react";
-import { useListUsers } from "@workspace/api-client-react";
+import { useListUsers, useCreateUser, useListDepartments } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useAuthStore } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Loader2 } from "lucide-react";
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   super_admin: { label: "Super Admin", color: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldAlert },
@@ -21,9 +29,115 @@ const avatarColors = [
   "bg-pink-500", "bg-teal-500", "bg-indigo-500", "bg-red-500",
 ];
 
+function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const createUser = useCreateUser();
+  const { data: departments } = useListDepartments();
+
+  const [form, setForm] = useState({
+    name: "", email: "", password: "", role: "employee", departmentId: "",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.email || !form.password) {
+      toast({ title: "Validation error", description: "Name, email and password are required", variant: "destructive" });
+      return;
+    }
+    createUser.mutate({
+      data: {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: form.role as "employee" | "agent" | "manager" | "admin" | "super_admin" | "external",
+        departmentId: form.departmentId && form.departmentId !== "none" ? parseInt(form.departmentId) : undefined,
+      }
+    }, {
+      onSuccess: () => {
+        toast({ title: "User created", description: `${form.name} has been added` });
+        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        setForm({ name: "", email: "", password: "", role: "employee", departmentId: "" });
+        onClose();
+      },
+      onError: (err: any) => {
+        toast({ title: "Failed to create user", description: err?.data?.message ?? "Something went wrong", variant: "destructive" });
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create New User</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="u-name">Full Name <span className="text-red-500">*</span></Label>
+            <Input id="u-name" placeholder="e.g. Jane Smith" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="u-email">Email <span className="text-red-500">*</span></Label>
+            <Input id="u-email" type="email" placeholder="jane@example.com" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="u-pass">Password <span className="text-red-500">*</span></Label>
+            <Input id="u-pass" type="password" placeholder="Minimum 8 characters" value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Role</Label>
+              <Select value={form.role} onValueChange={(v) => setForm(f => ({ ...f, role: v }))}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="external">External</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Department</Label>
+              <Select value={form.departmentId} onValueChange={(v) => setForm(f => ({ ...f, departmentId: v }))}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {(departments ?? []).map(d => (
+                    <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={createUser.isPending}>
+              {createUser.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create User
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Users() {
+  const { user } = useAuthStore();
   const [roleFilter, setRoleFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+
+  const canManage = user?.role === "super_admin" || user?.role === "admin" ||
+    user?.departmentName?.toLowerCase() === "it";
 
   const { data: users, isLoading } = useListUsers({
     role: roleFilter as "agent" | "employee" | "manager" | "admin" | "super_admin" | "external" | undefined || undefined,
@@ -41,6 +155,12 @@ export default function Users() {
             <h1 className="text-xl font-bold text-foreground">Users</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} users</p>
           </div>
+          {canManage && (
+            <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4" />
+              Add User
+            </Button>
+          )}
         </div>
 
         <div className="flex gap-2 mb-4">
@@ -98,7 +218,7 @@ export default function Users() {
                     <p>No users found</p>
                   </td>
                 </tr>
-              ) : filtered.map((user, idx) => {
+              ) : filtered.map((user) => {
                 const roleCfg = roleConfig[user.role] ?? { label: user.role, color: "bg-gray-100 text-gray-600", icon: User };
                 const RoleIcon = roleCfg.icon;
                 const avatarColor = avatarColors[user.id % avatarColors.length];
@@ -144,6 +264,8 @@ export default function Users() {
           </table>
         </div>
       </div>
+
+      <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </AppLayout>
   );
 }
