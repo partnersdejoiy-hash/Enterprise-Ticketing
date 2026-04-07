@@ -102,4 +102,25 @@ router.post("/departments/bulk", authMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/departments/:departmentId", authMiddleware, async (req: any, res) => {
+  try {
+    const callerRole = req.user?.role;
+    if (callerRole !== "super_admin" && callerRole !== "admin") {
+      res.status(403).json({ error: "Forbidden", message: "Only Super Admins and Admins can delete departments" });
+      return;
+    }
+    const deptId = parseInt(req.params.departmentId, 10);
+    // Null out tickets assigned to this department instead of blocking
+    await db.update(ticketsTable).set({ departmentId: null }).where(eq(ticketsTable.departmentId, deptId));
+    // Unlink users from this department
+    await db.update(usersTable).set({ departmentId: null }).where(eq(usersTable.departmentId, deptId));
+    const deleted = await db.delete(departmentsTable).where(eq(departmentsTable.id, deptId)).returning();
+    if (!deleted.length) { res.status(404).json({ error: "Not Found" }); return; }
+    res.status(204).end();
+  } catch (err) {
+    console.error("Delete department error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

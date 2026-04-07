@@ -334,6 +334,25 @@ router.patch("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedRequ
   }
 });
 
+router.delete("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const callerRole = req.user!.role;
+    if (callerRole !== "super_admin" && callerRole !== "admin") {
+      res.status(403).json({ error: "Forbidden", message: "Only Super Admins and Admins can delete tickets" });
+      return;
+    }
+    const ticketId = parseInt(req.params.ticketId, 10);
+    await db.delete(commentsTable).where(eq(commentsTable.ticketId, ticketId));
+    await db.delete(ticketHistoryTable).where(eq(ticketHistoryTable.ticketId, ticketId));
+    const deleted = await db.delete(ticketsTable).where(eq(ticketsTable.id, ticketId)).returning();
+    if (!deleted.length) { res.status(404).json({ error: "Not Found" }); return; }
+    res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, "Delete ticket error");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.get("/tickets/:ticketId/comments", authMiddleware, async (req, res) => {
   try {
     const ticketId = parseInt(req.params.ticketId, 10);

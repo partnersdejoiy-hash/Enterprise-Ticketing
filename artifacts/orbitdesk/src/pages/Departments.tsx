@@ -13,8 +13,12 @@ import {
 import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Monitor, Users, ShieldCheck, Building2, Scale,
-  DollarSign, Cog, Headphones, Clock, TicketIcon, UserCheck, Plus, Upload, Loader2
+  DollarSign, Cog, Headphones, Clock, TicketIcon, UserCheck, Plus, Upload, Loader2, Trash2
 } from "lucide-react";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -127,12 +131,37 @@ function CreateDepartmentDialog({ open, onClose }: { open: boolean; onClose: () 
 
 export default function Departments() {
   const { user } = useAuthStore();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const { data: departments, isLoading, refetch: refetchDepts } = useListDepartments();
+  const [deleteDept, setDeleteDept] = useState<{ id: number; name: string } | null>(null);
+  const [deletingDept, setDeletingDept] = useState(false);
 
   const canManage = user?.role === "super_admin" || user?.role === "admin" ||
     user?.departmentName?.toLowerCase() === "it";
+  const canDelete = user?.role === "super_admin" || user?.role === "admin";
+
+  const handleDeleteDept = async () => {
+    if (!deleteDept) return;
+    setDeletingDept(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/departments/${deleteDept.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to delete department");
+      await queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+      toast({ title: "Department deleted", description: `"${deleteDept.name}" has been permanently deleted` });
+      setDeleteDept(null);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setDeletingDept(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -190,6 +219,15 @@ export default function Departments() {
                         )}
                       </div>
                     </div>
+                    {canDelete && (
+                      <button
+                        title="Delete department"
+                        onClick={() => setDeleteDept({ id: dept.id, name: dept.name })}
+                        className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 mt-4">
@@ -231,6 +269,27 @@ export default function Departments() {
 
       <CreateDepartmentDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="departments" onSuccess={refetchDepts} />
+
+      <AlertDialog open={!!deleteDept} onOpenChange={(open) => !open && setDeleteDept(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Department</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete the <strong>{deleteDept?.name}</strong> department? All users and tickets in this department will be unassigned. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingDept}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteDept}
+              disabled={deletingDept}
+            >
+              {deletingDept ? "Deleting…" : "Delete Department"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

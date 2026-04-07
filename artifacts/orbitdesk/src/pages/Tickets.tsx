@@ -4,15 +4,25 @@ import { useListTickets, useListDepartments } from "@workspace/api-client-react"
 import { AppLayout } from "@/components/layout/AppLayout";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { useMyPermissions } from "@/hooks/usePermissions";
+import { useAuthStore } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Plus, Upload, Search, Filter, RefreshCw, AlertCircle, Clock, CheckCircle2, 
-  CircleDot, Pause, XCircle, ChevronLeft, ChevronRight 
+  CircleDot, Pause, XCircle, ChevronLeft, ChevronRight, MoreHorizontal, Trash2
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -58,7 +68,33 @@ function formatDate(dateStr: string) {
 
 export default function Tickets() {
   const { perms } = useMyPermissions();
+  const { user } = useAuthStore();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const canDelete = user?.role === "super_admin" || user?.role === "admin";
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; ticketNumber: string; subject: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteTicket = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/tickets/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to delete ticket");
+      await queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      toast({ title: "Ticket deleted", description: `${deleteTarget.ticketNumber} has been permanently deleted` });
+      setDeleteTarget(null);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
   const queryString = useSearch();
   const initialSearch = new URLSearchParams(queryString).get("q") ?? "";
 
@@ -203,6 +239,7 @@ export default function Tickets() {
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Priority</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Assignee</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Created</th>
+                {canDelete && <th className="w-10 px-3 py-2.5" />}
               </tr>
             </thead>
             <tbody>
@@ -269,6 +306,26 @@ export default function Tickets() {
                   <td className="px-3 py-2.5">
                     <span className="text-xs text-muted-foreground">{formatDate(ticket.createdAt)}</span>
                   </td>
+                  {canDelete && (
+                    <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive gap-2"
+                            onClick={() => setDeleteTarget({ id: ticket.id, ticketNumber: ticket.ticketNumber, subject: ticket.subject })}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete Ticket
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -293,6 +350,27 @@ export default function Tickets() {
         )}
       </div>
       <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="tickets" onSuccess={refetch} />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Ticket</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{deleteTarget?.ticketNumber}</strong>: "{deleteTarget?.subject}"? This will also remove all comments and history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteTicket}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting…" : "Delete Ticket"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

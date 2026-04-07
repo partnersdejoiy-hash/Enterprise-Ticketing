@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, departmentsTable, usersTable, ticketsTable, eq, sql, and } from "@workspace/db";
-import { authMiddleware } from "../middlewares/auth.js";
+import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 
 const router = Router();
 
@@ -144,6 +144,25 @@ router.post("/departments/bulk", authMiddleware, async (req, res) => {
     res.status(201).json({ created: created.length, errors });
   } catch (err) {
     req.log.error({ err }, "Bulk create departments error");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/departments/:departmentId", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const callerRole = req.user!.role;
+    if (callerRole !== "super_admin" && callerRole !== "admin") {
+      res.status(403).json({ error: "Forbidden", message: "Only Super Admins and Admins can delete departments" });
+      return;
+    }
+    const deptId = parseInt(req.params.departmentId, 10);
+    await db.update(ticketsTable).set({ departmentId: null }).where(eq(ticketsTable.departmentId, deptId));
+    await db.update(usersTable).set({ departmentId: null }).where(eq(usersTable.departmentId, deptId));
+    const deleted = await db.delete(departmentsTable).where(eq(departmentsTable.id, deptId)).returning();
+    if (!deleted.length) { res.status(404).json({ error: "Not Found" }); return; }
+    res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, "Delete department error");
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

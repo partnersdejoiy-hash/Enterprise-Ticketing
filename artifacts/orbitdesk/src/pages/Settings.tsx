@@ -132,6 +132,28 @@ function RolePermissionCard({
     setDirty(false);
   };
 
+  const resetToDefaults = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/role-permissions/${perms.role}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message ?? "Failed to reset");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["role-permissions"] });
+      setDirty(false);
+      toast({ title: "Reset to defaults", description: `${ROLE_LABELS[perms.role]} permissions restored to system defaults` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Card className={isReadonly ? "opacity-75" : ""}>
       <CardHeader className="pb-3">
@@ -148,9 +170,12 @@ function RolePermissionCard({
           </div>
           {!isReadonly && (
             <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={resetToDefaults} disabled={saving}>
+                Reset to Defaults
+              </Button>
               {dirty && (
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={reset} disabled={saving}>
-                  Reset
+                  Discard
                 </Button>
               )}
               <Button

@@ -14,10 +14,15 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/lib/auth";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ArrowLeft, Clock, User, Building2, Tag, AlertCircle, 
   CheckCircle2, MessageSquare, Lock, Globe, Send, History,
-  TicketIcon
+  TicketIcon, Trash2
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -50,9 +55,31 @@ export default function TicketDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { user } = useAuthStore();
+  const canDelete = user?.role === "super_admin" || user?.role === "admin";
   const [comment, setComment] = useState("");
   const [isInternal, setIsInternal] = useState(false);
   const [activeTab, setActiveTab] = useState<"conversation" | "history">("conversation");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingTicket, setDeletingTicket] = useState(false);
+
+  const handleDeleteTicket = async () => {
+    setDeletingTicket(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/tickets/${ticketId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to delete ticket");
+      await queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      toast({ title: "Ticket deleted", description: "The ticket has been permanently deleted" });
+      setLocation("/tickets");
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+      setDeletingTicket(false);
+    }
+  };
 
   const { data: ticket, isLoading } = useGetTicket(ticketId, {
     query: { enabled: !!ticketId, queryKey: getGetTicketQueryKey(ticketId) }
@@ -403,11 +430,42 @@ export default function TicketDetail() {
                 >
                   <AlertCircle className="h-4 w-4" /> Escalate to Urgent
                 </Button>
+                {canDelete && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 mt-3"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 className="h-4 w-4" /> Delete Ticket
+                  </Button>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Ticket</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{ticket?.ticketNumber}</strong>? This will remove all comments and history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingTicket}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteTicket}
+              disabled={deletingTicket}
+            >
+              {deletingTicket ? "Deleting…" : "Delete Ticket"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

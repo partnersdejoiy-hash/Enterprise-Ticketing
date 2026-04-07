@@ -162,4 +162,30 @@ router.put("/role-permissions/:role", authMiddleware, async (req: AuthenticatedR
   }
 });
 
+// DELETE /api/role-permissions/:role — reset a role's permissions to system defaults
+router.delete("/role-permissions/:role", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const targetRole = req.params.role as Role;
+    const callerRole = req.user!.role as string;
+    const manageable = MANAGEABLE_BY[callerRole] ?? [];
+    if (!manageable.includes(targetRole)) {
+      res.status(403).json({ error: "Forbidden", message: "You cannot reset permissions for this role" });
+      return;
+    }
+    if (!DEFAULTS[targetRole]) {
+      res.status(400).json({ error: "Unknown role" });
+      return;
+    }
+    await ensurePermissionsExist();
+    await db.update(rolePermissionsTable)
+      .set({ ...DEFAULTS[targetRole], updatedById: req.user!.id, updatedAt: new Date() })
+      .where(eq(rolePermissionsTable.role, targetRole));
+    const [updated] = await db.select().from(rolePermissionsTable).where(eq(rolePermissionsTable.role, targetRole));
+    res.json(updated);
+  } catch (err) {
+    console.error("role-permissions DELETE error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;
