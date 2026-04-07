@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -16,12 +17,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub,
+  DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2, MoreHorizontal, ShieldOff, ShieldCheck, Trash2, UserMinus } from "lucide-react";
+import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2, MoreHorizontal, ShieldOff, ShieldCheck, Trash2, UserMinus, UserCog2, ChevronDown, CheckSquare } from "lucide-react";
 
 type UserRow = { id: number; name: string; email: string; role: string; departmentId: number | null; departmentName: string | null; isActive: boolean; createdAt: string };
 
@@ -140,6 +142,15 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
+const ASSIGNABLE_ROLES: Array<{ value: string; label: string }> = [
+  { value: "super_admin", label: "Super Admin" },
+  { value: "admin", label: "Admin" },
+  { value: "manager", label: "Manager" },
+  { value: "agent", label: "Agent" },
+  { value: "employee", label: "Employee" },
+  { value: "external", label: "External" },
+];
+
 export default function Users() {
   const { user } = useAuthStore();
   const [roleFilter, setRoleFilter] = useState("");
@@ -149,11 +160,26 @@ export default function Users() {
   const [actionUser, setActionUser] = useState<UserRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkRoleDialog, setBulkRoleDialog] = useState(false);
+  const [bulkRole, setBulkRole] = useState("employee");
+  const [bulkLoading, setBulkLoading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const canManage = user?.role === "super_admin" || user?.role === "admin" ||
-    user?.departmentName?.toLowerCase() === "it";
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = user?.role === "admin";
+  const canManage = isSuperAdmin || isAdmin || user?.departmentName?.toLowerCase() === "it";
+
+  const assignableRoles = isSuperAdmin
+    ? ASSIGNABLE_ROLES
+    : ASSIGNABLE_ROLES.filter((r) => r.value !== "super_admin");
+
+  const canChangeRole = (targetRole: string) => {
+    if (isSuperAdmin) return true;
+    if (isAdmin) return targetRole !== "super_admin";
+    return false;
+  };
 
   const apiCall = async (method: string, path: string, body?: object) => {
     const token = localStorage.getItem("auth_token");
@@ -195,6 +221,55 @@ export default function Users() {
     }
   };
 
+  const handleChangeRole = async (u: UserRow, newRole: string) => {
+    setActionLoading(true);
+    try {
+      await apiCall("PATCH", `/api/users/${u.id}`, { role: newRole });
+      await refetchUsers();
+      const newLabel = ASSIGNABLE_ROLES.find((r) => r.value === newRole)?.label ?? newRole;
+      toast({ title: "Role updated", description: `${u.name} is now ${newLabel}.` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBulkChangeRole = async () => {
+    if (!selected.size) return;
+    setBulkLoading(true);
+    try {
+      const result = await apiCall("PATCH", "/api/users/bulk-role", { userIds: Array.from(selected), role: bulkRole });
+      await refetchUsers();
+      setSelected(new Set());
+      setBulkRoleDialog(false);
+      const roleLabel = ASSIGNABLE_ROLES.find((r) => r.value === bulkRole)?.label ?? bulkRole;
+      toast({
+        title: "Roles updated",
+        description: `${result.updated} user(s) changed to ${roleLabel}${result.skipped > 0 ? `, ${result.skipped} skipped (insufficient permissions)` : ""}.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkToggleAccess = async (activate: boolean) => {
+    setBulkLoading(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(ids.map((id) => apiCall("PATCH", `/api/users/${id}`, { isActive: activate })));
+      await refetchUsers();
+      setSelected(new Set());
+      toast({ title: activate ? "Access restored" : "Access revoked", description: `${ids.length} user(s) updated.` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!actionUser) return;
     setActionLoading(true);
@@ -218,6 +293,9 @@ export default function Users() {
   const filtered = (users ?? []).filter(u =>
     !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  const allSelected = filtered.length > 0 && filtered.every((u) => selected.has(u.id));
+  const someSelected = selected.size > 0;
 
   return (
     <AppLayout>
@@ -267,10 +345,72 @@ export default function Users() {
           </Select>
         </div>
 
+        {/* Bulk actions bar */}
+        {someSelected && (canManage) && (
+          <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+            <CheckSquare className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-medium text-foreground">{selected.size} user{selected.size !== 1 ? "s" : ""} selected</span>
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              {(isSuperAdmin || isAdmin) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => { setBulkRole("employee"); setBulkRoleDialog(true); }}
+                  disabled={bulkLoading}
+                >
+                  <UserCog className="h-3.5 w-3.5" />
+                  Change Role
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5 text-green-700 hover:bg-green-50"
+                onClick={() => handleBulkToggleAccess(true)}
+                disabled={bulkLoading}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Restore Access
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5 text-orange-600 hover:bg-orange-50"
+                onClick={() => handleBulkToggleAccess(false)}
+                disabled={bulkLoading}
+              >
+                <ShieldOff className="h-3.5 w-3.5" />
+                Revoke Access
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setSelected(new Set())}
+                disabled={bulkLoading}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="border border-border rounded-lg overflow-hidden bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
+                {canManage && (
+                  <th className="w-10 px-3 py-2.5">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={(c) => {
+                        if (c) setSelected(new Set(filtered.map((u) => u.id)));
+                        else setSelected(new Set());
+                      }}
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">User</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Role</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Department</th>
@@ -283,6 +423,7 @@ export default function Users() {
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
+                    {canManage && <td className="px-3 py-3"><Skeleton className="h-4 w-4" /></td>}
                     <td className="px-4 py-3"><div className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-32" /></div></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
@@ -293,7 +434,7 @@ export default function Users() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 6 : 5} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={canManage ? 7 : 5} className="px-6 py-12 text-center text-muted-foreground">
                     <UserCircle2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     <p>No users found</p>
                   </td>
@@ -303,9 +444,24 @@ export default function Users() {
                 const RoleIcon = roleCfg.icon;
                 const avatarColor = avatarColors[u.id % avatarColors.length];
                 const isSelf = u.id === user?.id;
+                const isChecked = selected.has(u.id);
 
                 return (
-                  <tr key={u.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${!u.isActive ? "opacity-60" : ""}`}>
+                  <tr key={u.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${!u.isActive ? "opacity-60" : ""} ${isChecked ? "bg-primary/5" : ""}`}>
+                    {canManage && (
+                      <td className="px-3 py-3">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(c) => {
+                            setSelected((prev) => {
+                              const next = new Set(prev);
+                              if (c) next.add(u.id); else next.delete(u.id);
+                              return next;
+                            });
+                          }}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -347,6 +503,29 @@ export default function Users() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
+                            {/* Change Role submenu */}
+                            {canChangeRole(u.role) && !isSelf && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="gap-2">
+                                  <UserCog className="h-4 w-4" />
+                                  Change Role
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-44">
+                                  {assignableRoles.map((r) => (
+                                    <DropdownMenuItem
+                                      key={r.value}
+                                      className={`gap-2 ${u.role === r.value ? "font-semibold text-primary" : ""}`}
+                                      onClick={() => handleChangeRole(u as UserRow, r.value)}
+                                      disabled={u.role === r.value}
+                                    >
+                                      {u.role === r.value && <span className="text-primary mr-1">✓</span>}
+                                      {r.label}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            )}
+                            <DropdownMenuSeparator />
                             {u.isActive ? (
                               <DropdownMenuItem
                                 className="text-orange-600 focus:text-orange-700 focus:bg-orange-50 gap-2"
@@ -398,6 +577,36 @@ export default function Users() {
       <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="users" onSuccess={refetchUsers} />
 
+      {/* Bulk Change Role Dialog */}
+      <Dialog open={bulkRoleDialog} onOpenChange={(v) => !v && setBulkRoleDialog(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change Role for {selected.size} User{selected.size !== 1 ? "s" : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <p className="text-sm text-muted-foreground">Select the new role to assign to all selected users. Users you cannot manage (e.g. Super Admins) will be skipped automatically.</p>
+            <Select value={bulkRole} onValueChange={setBulkRole}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {assignableRoles.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkRoleDialog(false)} disabled={bulkLoading}>Cancel</Button>
+            <Button onClick={handleBulkChangeRole} disabled={bulkLoading}>
+              {bulkLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Apply to {selected.size} User{selected.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
       <AlertDialog open={confirmDelete} onOpenChange={(o) => { if (!o) { setConfirmDelete(false); setActionUser(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -1,7 +1,18 @@
 import { Router } from "express";
 import { db, usersTable, departmentsTable, eq, and } from "@workspace/db";
 import { hashPassword } from "../lib/auth.js";
-import { authMiddleware } from "../middlewares/auth.js";
+import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
+
+const ROLES = ["employee", "agent", "manager", "admin", "super_admin", "external"] as const;
+type Role = typeof ROLES[number];
+
+function canAssignRole(callerRole: string, targetCurrentRole: string, newRole: string): boolean {
+  if (callerRole === "super_admin") return true;
+  if (callerRole === "admin") {
+    return targetCurrentRole !== "super_admin" && newRole !== "super_admin";
+  }
+  return false;
+}
 
 const router = Router();
 
@@ -85,10 +96,53 @@ router.get("/users/:userId", authMiddleware, async (req, res) => {
   }
 });
 
-router.patch("/users/:userId", authMiddleware, async (req, res) => {
+router.patch("/users/bulk-role", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
+    const callerRole = req.user!.role;
+    if (callerRole !== "super_admin" && callerRole !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const { userIds, role } = req.body as { userIds: number[]; role: string };
+    if (!Array.isArray(userIds) || !userIds.length || !ROLES.includes(role as Role)) {
+      res.status(400).json({ error: "Bad Request", message: "userIds array and valid role required" });
+      return;
+    }
+    const targets = await db.select({ id: usersTable.id, role: usersTable.role }).from(usersTable);
+    const targetMap = new Map(targets.map((t) => [t.id, t.role]));
+
+    let updated = 0;
+    const skipped: number[] = [];
+
+    for (const uid of userIds) {
+      const currentRole = targetMap.get(uid);
+      if (currentRole === undefined) continue;
+      if (!canAssignRole(callerRole, currentRole, role)) { skipped.push(uid); continue; }
+      await db.update(usersTable).set({ role }).where(eq(usersTable.id, uid));
+      updated++;
+    }
+
+    res.json({ updated, skipped: skipped.length, message: `${updated} user(s) updated, ${skipped.length} skipped due to insufficient permissions` });
+  } catch (err) {
+    console.error("Bulk role error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const callerRole = req.user!.role;
     const userId = parseInt(req.params.userId, 10);
     const { name, role, departmentId, isActive } = req.body;
+
+    if (role !== undefined) {
+      const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!target) { res.status(404).json({ error: "Not Found" }); return; }
+      if (!canAssignRole(callerRole, target.role, role)) {
+        res.status(403).json({ error: "Forbidden", message: "You cannot assign this role" });
+        return;
+      }
+    }
 
     const updates: Partial<typeof usersTable.$inferInsert> = {};
     if (name !== undefined) updates.name = name;
