@@ -13,7 +13,7 @@ import {
   getGetSlaOverviewQueryKey
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Ticket, AlertCircle, Clock, CheckCircle2, Building2, ShieldAlert } from "lucide-react";
+import { Ticket, AlertCircle, Clock, CheckCircle2, Building2, ShieldAlert, FileText, Plus, ArrowRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Sector } from "recharts";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badges";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -126,6 +126,29 @@ export default function Dashboard() {
             description="Across all departments"
             isLoading={isLoadingStats}
           />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+          {[
+            { href: "/documents", icon: FileText, label: "Request Document", desc: "Experience letter, salary slip, etc.", color: "text-blue-600 bg-blue-50 border-blue-100" },
+            { href: "/tickets/new", icon: Plus, label: "New Ticket", desc: "Raise a support request", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+            { href: "/tickets?priority=urgent", icon: AlertCircle, label: "Urgent Tickets", desc: "View tickets needing immediate attention", color: "text-red-600 bg-red-50 border-red-100" },
+            { href: "/tickets?status=open", icon: Ticket, label: "Open Tickets", desc: "Browse all open support tickets", color: "text-amber-600 bg-amber-50 border-amber-100" },
+          ].map((action) => (
+            <Link key={action.href} href={action.href}>
+              <div className={`group flex flex-col gap-2 rounded-xl border p-4 cursor-pointer transition-all hover:shadow-sm hover:-translate-y-0.5 ${action.color.split(" ").slice(1).join(" ")}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${action.color.split(" ")[1]} bg-white/70`}>
+                  <action.icon className={`h-4 w-4 ${action.color.split(" ")[0]}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground leading-tight">{action.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{action.desc}</p>
+                </div>
+                <ArrowRight className={`h-3.5 w-3.5 ${action.color.split(" ")[0]} opacity-0 group-hover:opacity-100 transition-opacity ml-auto`} />
+              </div>
+            </Link>
+          ))}
         </div>
 
         <div className="grid gap-6 md:grid-cols-7 lg:grid-cols-7">

@@ -5,6 +5,7 @@ import usersRouter from "./users";
 import ticketsRouter from "./tickets";
 import departmentsRouter from "./departments";
 import dashboardRouter from "./dashboard";
+import emailRouter from "./email";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(usersRouter);
 router.use(ticketsRouter);
 router.use(departmentsRouter);
 router.use(dashboardRouter);
+router.use(emailRouter);
 
 export default router;

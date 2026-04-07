@@ -9,7 +9,8 @@ import {
   LogOut,
   Bell,
   Search,
-  Menu
+  Menu,
+  FileText
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 const allNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: null },
   { name: "Tickets", href: "/tickets", icon: Ticket, roles: null },
+  { name: "Document Requests", href: "/documents", icon: FileText, roles: null },
   { name: "Departments", href: "/departments", icon: Building2, roles: ["super_admin", "admin", "manager", "agent", "it"] },
   { name: "Users", href: "/users", icon: Users, roles: ["super_admin", "admin"] },
   { name: "Settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },

@@ -13,6 +13,7 @@ import TicketDetail from "@/pages/TicketDetail";
 import Departments from "@/pages/Departments";
 import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
+import Documents from "@/pages/Documents";
 import { useAuthStore } from "@/lib/auth";
 
 setAuthTokenGetter(() => {
@@ -67,6 +68,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <AuthGuard><Settings /></AuthGuard>
+      </Route>
+      <Route path="/documents">
+        <AuthGuard><Documents /></AuthGuard>
       </Route>
       <Route component={NotFound} />
     </Switch>
