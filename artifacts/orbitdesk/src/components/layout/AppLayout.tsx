@@ -56,12 +56,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-sidebar border-r border-sidebar-border hidden md:flex flex-col flex-shrink-0">
-        <div className="h-14 flex items-center px-6 border-b border-sidebar-border">
-          <div className="flex items-center gap-2 text-sidebar-primary">
-            <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground font-bold">
-              O
+        <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
+          <div className="flex items-center gap-2.5">
+            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-8 h-8 rounded-lg object-cover shadow-sm flex-shrink-0" />
+            <div className="flex flex-col leading-none">
+              <span className="text-[9px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest">Dejoiy</span>
+              <span className="font-bold text-sm text-sidebar-foreground tracking-tight">OrbitDesk</span>
             </div>
-            <span className="font-bold text-lg text-sidebar-foreground tracking-tight">OrbitDesk</span>
           </div>
         </div>
         <nav className="flex-1 py-4 px-3 space-y-1">
@@ -100,10 +101,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-sidebar-foreground/40">Powered by</span>
               <div className="flex items-center gap-1">
-                <div className="w-3.5 h-3.5 rounded bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
-                  <span className="text-white font-bold text-[8px]">D</span>
-                </div>
-                <span className="text-[11px] font-semibold text-orange-400 tracking-wide">Dejoiy</span>
+                <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-3.5 h-3.5 rounded object-cover" />
+                <span className="text-[11px] font-semibold text-sidebar-foreground/70 tracking-wide">Dejoiy</span>
               </div>
             </div>
             <span className="text-[9px] text-sidebar-foreground/30">&copy; {new Date().getFullYear()} Dejoiy. All rights reserved.</span>

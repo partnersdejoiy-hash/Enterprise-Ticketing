@@ -66,22 +66,15 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-[400px]">
-        <div className="flex flex-col items-center mb-8 gap-2">
-          <div className="flex items-center gap-2 text-primary">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl">
-              O
-            </div>
-            <span className="font-bold text-3xl tracking-tight text-foreground">OrbitDesk</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Powered by</span>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
-                <span className="text-white font-bold text-[9px]">D</span>
-              </div>
-              <span className="text-xs font-semibold text-orange-500 tracking-wide">Dejoiy</span>
+        <div className="flex flex-col items-center mb-8 gap-1">
+          <div className="flex items-center gap-3">
+            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-12 h-12 rounded-xl object-cover shadow-md" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Dejoiy</span>
+              <span className="font-bold text-2xl tracking-tight text-foreground">OrbitDesk</span>
             </div>
           </div>
+          <span className="text-xs text-muted-foreground mt-1">Enterprise Ticketing System</span>
         </div>
 
         <Card className="shadow-lg border-border">
@@ -142,10 +135,8 @@ export default function Login() {
         
         <div className="mt-8 flex flex-col items-center gap-1">
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
-              <span className="text-white font-bold text-[9px]">D</span>
-            </div>
-            <span className="text-sm font-semibold text-orange-500 tracking-wide">Dejoiy</span>
+            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-4 h-4 rounded object-cover" />
+            <span className="text-sm font-semibold text-foreground tracking-wide">Dejoiy</span>
           </div>
           <p className="text-center text-xs text-muted-foreground">
             &copy; {new Date().getFullYear()} Dejoiy. All rights reserved.
