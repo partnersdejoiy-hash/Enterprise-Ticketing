@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, ticketsTable, usersTable, sql, eq, and, inArray } from "@workspace/db";
+import { db, ticketsTable, usersTable, departmentsTable, commentsTable, sql, eq, and, inArray } from "@workspace/db";
 import { authMiddleware } from "../middlewares/auth.js";
 
 const router = Router();
@@ -111,21 +111,23 @@ router.get("/dashboard/recent-tickets", authMiddleware, async (req, res) => {
 
     const deptIds = [...new Set(tickets.filter((t) => t.departmentId).map((t) => t.departmentId!))];
 
-    const [userRows, deptRows, commentCounts] = await Promise.all([
-      userIds.length > 0 ? db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, userIds)) : [],
-      deptIds.length > 0 ? db.execute(sql`SELECT id, name FROM departments WHERE id = ANY(${deptIds})`) : { rows: [] },
-      tickets.length > 0
-        ? db.execute(sql`SELECT ticket_id, COUNT(*)::int as count FROM ticket_comments WHERE ticket_id = ANY(${tickets.map((t) => t.id)}) GROUP BY ticket_id`)
-        : { rows: [] },
+    const ticketIds = tickets.map((t) => t.id);
+
+    const [userRows, deptRows, commentRows] = await Promise.all([
+      userIds.length > 0
+        ? db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, userIds))
+        : [],
+      deptIds.length > 0
+        ? db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable).where(inArray(departmentsTable.id, deptIds))
+        : [],
+      ticketIds.length > 0
+        ? db.select({ ticketId: commentsTable.ticketId, count: sql<number>`COUNT(*)::int` }).from(commentsTable).where(inArray(commentsTable.ticketId, ticketIds)).groupBy(commentsTable.ticketId)
+        : [],
     ]);
 
-    const usersMap = new Map((userRows as typeof userRows).map((u) => [u.id, u.name]));
-    const deptsMap = new Map(
-      ((deptRows as { rows: Array<{ id: number; name: string }> }).rows ?? []).map((d) => [d.id, d.name])
-    );
-    const commentMap = new Map(
-      ((commentCounts as { rows: Array<{ ticket_id: number; count: number }> }).rows ?? []).map((c) => [c.ticket_id, c.count])
-    );
+    const usersMap = new Map(userRows.map((u) => [u.id, u.name]));
+    const deptsMap = new Map(deptRows.map((d) => [d.id, d.name]));
+    const commentMap = new Map(commentRows.map((c) => [c.ticketId, c.count]));
 
     res.json(
       tickets.map((t) => ({

@@ -51,8 +51,8 @@ export default function CreateTicket() {
         subject: values.subject,
         description: values.description,
         priority: values.priority,
-        departmentId: values.departmentId ? parseInt(values.departmentId) : undefined,
-        assigneeId: values.assigneeId ? parseInt(values.assigneeId) : undefined,
+        departmentId: values.departmentId && values.departmentId !== "none" ? parseInt(values.departmentId) : undefined,
+        assigneeId: values.assigneeId && values.assigneeId !== "none" ? parseInt(values.assigneeId) : undefined,
         tags: values.tags ? values.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
       }
     }, {
@@ -159,7 +159,7 @@ export default function CreateTicket() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">No department</SelectItem>
+                            <SelectItem value="none">No department</SelectItem>
                             {(departments ?? []).map((d) => (
                               <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
                             ))}
@@ -184,7 +184,7 @@ export default function CreateTicket() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">Auto-assign</SelectItem>
+                          <SelectItem value="none">Auto-assign</SelectItem>
                           {(users ?? []).map((u) => (
                             <SelectItem key={u.id} value={String(u.id)}>
                               {u.name} {u.departmentName ? `(${u.departmentName})` : ""}
