@@ -3,6 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { useListTickets, useListDepartments } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
+import { useMyPermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function Tickets() {
+  const { perms } = useMyPermissions();
   const [, setLocation] = useLocation();
   const queryString = useSearch();
   const initialSearch = new URLSearchParams(queryString).get("q") ?? "";
@@ -112,14 +114,18 @@ export default function Tickets() {
             <p className="text-sm text-muted-foreground mt-0.5">{total} total tickets</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowBulk(true)}>
-              <Upload className="h-4 w-4" />
-              Bulk Upload
-            </Button>
-            <Button onClick={() => setLocation("/tickets/new")} size="sm" className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              New Ticket
-            </Button>
+            {perms.canBulkUpload && (
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowBulk(true)}>
+                <Upload className="h-4 w-4" />
+                Bulk Upload
+              </Button>
+            )}
+            {perms.canCreateTicket && (
+              <Button onClick={() => setLocation("/tickets/new")} size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                New Ticket
+              </Button>
+            )}
           </div>
         </div>
 

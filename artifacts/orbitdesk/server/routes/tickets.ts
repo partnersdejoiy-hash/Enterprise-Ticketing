@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, ticketsTable, usersTable, departmentsTable, commentsTable, ticketHistoryTable, eq, and, sql, ilike, inArray } from "@workspace/db";
+import { db, ticketsTable, usersTable, departmentsTable, commentsTable, ticketHistoryTable, rolePermissionsTable, eq, and, sql, ilike, inArray } from "@workspace/db";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -91,6 +91,21 @@ router.get("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
 router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
+    const userRole = req.user!.role as string;
+
+    // Super admins always bypass permission checks
+    if (userRole !== "super_admin") {
+      const [rolePerm] = await db.select({ canCreateTicket: rolePermissionsTable.canCreateTicket })
+        .from(rolePermissionsTable)
+        .where(eq(rolePermissionsTable.role, userRole as any))
+        .limit(1);
+
+      if (rolePerm && !rolePerm.canCreateTicket) {
+        res.status(403).json({ error: "Forbidden", message: "Your role does not have permission to create tickets" });
+        return;
+      }
+    }
+
     const { subject, description, priority = "medium", departmentId, assigneeId, tags = [] } = req.body;
 
     if (!subject || !description) {

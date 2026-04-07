@@ -6,6 +6,7 @@ import ticketsRouter from "./tickets.js";
 import departmentsRouter from "./departments.js";
 import dashboardRouter from "./dashboard.js";
 import emailRouter from "./email.js";
+import permissionsRouter from "./permissions.js";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use(ticketsRouter);
 router.use(departmentsRouter);
 router.use(dashboardRouter);
 router.use(emailRouter);
+router.use(permissionsRouter);
 
 export default router;
