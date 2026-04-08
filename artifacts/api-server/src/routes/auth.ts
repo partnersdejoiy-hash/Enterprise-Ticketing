@@ -70,7 +70,7 @@ router.post("/auth/forgot-password", async (req, res) => {
 
     if (user) {
       const [itDept] = await db.select().from(departmentsTable).where(ilike(departmentsTable.name, "IT%")).limit(1);
-      const ticketNumber = `TKT-${Date.now().toString(36).toUpperCase()}`;
+      const ticketNumber = `DJ-${Math.floor(Math.random() * 900000) + 100000}`;
       const slaDeadline = itDept ? new Date(Date.now() + itDept.slaResolutionHours * 3600 * 1000) : null;
 
       const [ticket] = await db.insert(ticketsTable).values({
@@ -119,6 +119,58 @@ router.get("/auth/me", authMiddleware, async (req: AuthenticatedRequest, res) =>
     });
   } catch (err) {
     req.log.error({ err }, "Get me error");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.put("/auth/profile", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { name, avatar } = req.body;
+
+    const updates: Partial<typeof usersTable.$inferInsert> = {};
+    if (typeof name === "string" && name.trim()) {
+      updates.name = name.trim();
+    }
+    if (typeof avatar === "string") {
+      if (avatar === "" || avatar.startsWith("data:image/")) {
+        updates.avatar = avatar || null;
+      } else {
+        res.status(400).json({ error: "Invalid avatar format. Must be a data URL." });
+        return;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "Nothing to update" });
+      return;
+    }
+
+    const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
+    if (!updated) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    let departmentName: string | null = null;
+    if (updated.departmentId) {
+      const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, updated.departmentId)).limit(1);
+      departmentName = dept?.name ?? null;
+    }
+
+    res.json({
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      departmentId: updated.departmentId,
+      departmentName,
+      avatar: updated.avatar,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Update profile error");
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

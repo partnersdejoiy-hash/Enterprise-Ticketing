@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
@@ -15,12 +15,20 @@ import {
   ChevronRight,
   BookOpen,
   Zap,
+  Camera,
+  Pencil,
+  Loader2,
+  UserCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLogout } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,9 +60,15 @@ const roleLabels: Record<string, string> = {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateUser } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [headerSearch, setHeaderSearch] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileAvatar, setProfileAvatar] = useState<string>("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const isPrivileged = user?.role === "super_admin" || user?.role === "admin" ||
     user?.departmentName?.toLowerCase() === "it";
@@ -82,6 +96,62 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         setLocation("/");
       }
     });
+  };
+
+  const openProfile = () => {
+    setProfileName(user?.name ?? "");
+    setProfileAvatar(user?.avatar ?? "");
+    setProfileOpen(true);
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please choose an image under 2 MB.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setProfileAvatar(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleProfileSave = async () => {
+    if (!user) return;
+    setProfileSaving(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: profileName.trim() || undefined,
+          avatar: profileAvatar,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? data.error ?? "Failed to save profile");
+      }
+      const updated = await res.json();
+      updateUser({ name: updated.name, avatar: updated.avatar });
+      toast({ title: "Profile updated", description: "Your profile has been saved." });
+      setProfileOpen(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message ?? "Failed to save profile", variant: "destructive" });
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -150,12 +220,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="p-4 border-t border-sidebar-border flex-shrink-0">
         <div className="flex items-center gap-3 mb-3">
-          <Avatar className="h-9 w-9 border border-sidebar-border flex-shrink-0">
-            <AvatarImage src={user.avatar || ""} />
-            <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-sm font-medium">
-              {user.name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <button
+            onClick={openProfile}
+            title="Edit profile"
+            className="relative group flex-shrink-0"
+          >
+            <Avatar className="h-9 w-9 border border-sidebar-border">
+              <AvatarImage src={user.avatar || ""} />
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-sm font-medium">
+                {user.name.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Pencil className="h-3 w-3 text-white" />
+            </span>
+          </button>
           <div className="flex flex-col overflow-hidden flex-1">
             <span className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</span>
             <span className="text-xs text-sidebar-foreground/60 truncate">{roleLabels[user.role] ?? user.role}</span>
@@ -255,6 +334,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={openProfile} className="cursor-pointer gap-2">
+                  <UserCircle className="h-4 w-4" />
+                  My Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer gap-2">
                   <LogOut className="h-4 w-4" />
                   Sign out
@@ -269,6 +353,80 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      {/* Profile Dialog */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarFileChange}
+      />
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>My Profile</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-5 py-2">
+            <div className="relative group">
+              <Avatar className="h-24 w-24 border-4 border-muted shadow-md">
+                <AvatarImage src={profileAvatar || ""} />
+                <AvatarFallback className="text-3xl font-semibold bg-primary/10 text-primary">
+                  {profileName.charAt(0).toUpperCase() || user.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full flex flex-col items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity gap-0.5"
+                title="Upload photo"
+              >
+                <Camera className="h-5 w-5 text-white" />
+                <span className="text-[10px] text-white font-medium">Change</span>
+              </button>
+            </div>
+            {profileAvatar && (
+              <button
+                onClick={() => setProfileAvatar("")}
+                className="text-xs text-destructive hover:underline -mt-2"
+              >
+                Remove photo
+              </button>
+            )}
+            <div className="w-full space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-name">Full Name</Label>
+                <Input
+                  id="profile-name"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  placeholder="Your full name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input value={user.email} disabled className="bg-muted/50 text-muted-foreground" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Role</Label>
+                <div className="flex items-center h-9 px-3 rounded-md border bg-muted/50">
+                  <Badge variant="secondary" className="capitalize text-xs">
+                    {roleLabels[user.role] ?? user.role}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileOpen(false)} disabled={profileSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleProfileSave} disabled={profileSaving}>
+              {profileSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

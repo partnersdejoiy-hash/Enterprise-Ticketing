@@ -209,7 +209,8 @@ async function applyAutomationRules(emailCtx: {
 }
 
 function genTicketNum(): string {
-  return `TKT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+  const num = Math.floor(Math.random() * 900000) + 100000;
+  return `DJ-${num}`;
 }
 
 async function autoRouteDept(subject: string, body: string): Promise<number | undefined> {

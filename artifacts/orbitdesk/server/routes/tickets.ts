@@ -6,7 +6,7 @@ import { sendTicketCreatedEmail, sendTicketStatusEmail, sendDocumentRequestEmail
 const router = Router();
 
 function generateTicketNumber(): string {
-  const prefix = "TKT";
+  const prefix = "DJ";
   const num = Math.floor(Math.random() * 900000) + 100000;
   return `${prefix}-${num}`;
 }
