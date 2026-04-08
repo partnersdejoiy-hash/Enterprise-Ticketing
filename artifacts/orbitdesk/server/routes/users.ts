@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, departmentsTable, eq, and } from "@workspace/db";
+import { db, usersTable, departmentsTable, eq, and, ilike } from "@workspace/db";
 import { hashPassword } from "../lib/auth.js";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 
@@ -80,16 +80,26 @@ router.post("/users", authMiddleware, async (req, res) => {
 
 router.get("/users/lookup", authMiddleware, async (req, res) => {
   try {
-    const { employeeId } = req.query;
-    if (!employeeId) { res.status(400).json({ error: "employeeId query param required" }); return; }
-    const [user] = await db.select().from(usersTable).where(eq((usersTable as any).employeeId, employeeId as string)).limit(1);
-    if (!user) { res.status(404).json({ error: "Not Found", message: "No user found with that employee ID" }); return; }
-    let departmentName: string | null = null;
-    if (user.departmentId) {
-      const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, user.departmentId)).limit(1);
-      departmentName = dept?.name ?? null;
+    const { employeeId, name } = req.query;
+    if (!employeeId && !name) { res.status(400).json({ error: "Provide employeeId or name query param" }); return; }
+    if (employeeId) {
+      const [user] = await db.select().from(usersTable).where(eq((usersTable as any).employeeId, employeeId as string)).limit(1);
+      if (!user) { res.status(404).json({ error: "Not Found", message: "No user found with that employee ID" }); return; }
+      let departmentName: string | null = null;
+      if (user.departmentId) {
+        const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, user.departmentId)).limit(1);
+        departmentName = dept?.name ?? null;
+      }
+      res.json(formatUser(user, departmentName));
+    } else {
+      const users = await db.select().from(usersTable)
+        .where(ilike(usersTable.name, `%${name as string}%`))
+        .limit(10);
+      if (!users.length) { res.status(404).json({ error: "Not Found", message: "No users found with that name" }); return; }
+      const depts = await db.select().from(departmentsTable);
+      const deptMap = new Map(depts.map(d => [d.id, d.name]));
+      res.json(users.map(u => formatUser(u, u.departmentId ? (deptMap.get(u.departmentId) ?? null) : null)));
     }
-    res.json(formatUser(user, departmentName));
   } catch (err) {
     console.error("Lookup user error", err);
     res.status(500).json({ error: "Internal Server Error" });

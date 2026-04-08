@@ -78,11 +78,29 @@ export interface EmailAttachmentInput {
   contentType: string;
 }
 
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/tr>/gi, "\n")
+    .replace(/<\/h[1-6]>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function sendEmail(
   to: string | string[],
   subject: string,
   html: string,
   attachments?: EmailAttachmentInput[],
+  cc?: string | string[],
 ): Promise<void> {
   const cfg = await getEmailConfig();
   if (!cfg.enabled || !cfg.host) {
@@ -92,10 +110,22 @@ export async function sendEmail(
   try {
     const transporter = createTransporter(cfg);
     const recipients = Array.isArray(to) ? to.join(", ") : to;
+    const ccRecipients = cc ? (Array.isArray(cc) ? cc.join(", ") : cc) : undefined;
+    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${cfg.fromEmail.split("@")[1] || "orbitdesk.app"}>`;
     await transporter.sendMail({
       from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
+      replyTo: `"${cfg.fromName}" <${cfg.fromEmail}>`,
       to: recipients,
+      ...(ccRecipients ? { cc: ccRecipients } : {}),
       subject,
+      messageId,
+      headers: {
+        "X-Mailer": "OrbitDesk by Dejoiy",
+        "X-Priority": "3",
+        "Precedence": "bulk",
+        "List-Unsubscribe": `<mailto:${cfg.fromEmail}?subject=unsubscribe>`,
+      },
+      text: htmlToText(html),
       html,
       attachments: attachments?.map(a => ({
         filename: a.filename,
@@ -103,7 +133,7 @@ export async function sendEmail(
         contentType: a.contentType,
       })),
     });
-    console.error(`[email] Sent "${subject}" to ${recipients}`);
+    console.error(`[email] Sent "${subject}" to ${recipients}${ccRecipients ? ` (cc: ${ccRecipients})` : ""}`);
   } catch (err) {
     console.error(`[email] Failed to send email:`, err);
   }
@@ -113,7 +143,7 @@ export async function sendTicketCreatedEmail(opts: {
   ticketNumber: string; subject: string; status: string; priority: string;
   departmentName?: string; createdByName: string;
   raisedForName?: string; raisedForEmail?: string;
-  createdByEmail?: string;
+  createdByEmail?: string; ccEmails?: string[];
 }): Promise<void> {
   const to: string[] = [];
   if (opts.createdByEmail) to.push(opts.createdByEmail);
@@ -137,7 +167,8 @@ export async function sendTicketCreatedEmail(opts: {
     <p>You will be notified when there are updates. Please keep this ticket number for reference.</p>
   `);
 
-  await sendEmail(to, `[OrbitDesk] Ticket Created: ${opts.ticketNumber}`, html);
+  const cc = (opts.ccEmails ?? []).filter(e => !to.includes(e));
+  await sendEmail(to, `[OrbitDesk] Ticket Created: ${opts.ticketNumber}`, html, undefined, cc.length ? cc : undefined);
 }
 
 export async function sendTicketStatusEmail(opts: {

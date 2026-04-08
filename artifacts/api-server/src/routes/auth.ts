@@ -22,7 +22,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     if (!user.isActive) {
-      res.status(401).json({ error: "Unauthorized", message: "Account is inactive" });
+      res.status(403).json({ error: "AccessRevoked", message: "You are not authorised to utilise this tool. Please contact your supervisor or administration." });
       return;
     }
 

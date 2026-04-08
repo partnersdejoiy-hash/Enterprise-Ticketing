@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, ticketsTable, usersTable, departmentsTable, commentsTable, ticketHistoryTable, rolePermissionsTable, eq, and, sql, ilike, inArray } from "@workspace/db";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 import { sendTicketCreatedEmail, sendTicketStatusEmail, sendDocumentRequestEmail } from "../lib/emailService";
-import { autoAssignForDepartment } from "../lib/autoAssign.js";
+import { autoAssignForDepartment, autoAssignFromDepartments } from "../lib/autoAssign.js";
 
 const router = Router();
 
@@ -110,7 +110,7 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       }
     }
 
-    const { subject, description, priority = "medium", assigneeId, tags = [], raisedForName, raisedForEmail } = req.body;
+    const { subject, description, priority = "medium", assigneeId, tags = [], raisedForName, raisedForEmail, ccEmails = [] } = req.body;
     let departmentId: number | undefined = req.body.departmentId;
 
     if (!subject || !description) {
@@ -142,9 +142,11 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       if (tagList.includes("password-reset"))                           resolved = itDept;
       else if (tagList.includes("wfh-request"))                        resolved = hrDept;
       else if (tagList.includes("document-request"))                   resolved = hrDept;
+      else if (tagList.includes("employment-verification"))            resolved = hrDept;
       else if (tagList.includes("bgv-request"))                        resolved = bgvDept;
       // 2. Subject/description keyword routing
       else if (/password|reset.*password|cannot.*login|account.*lock|vpn|laptop|computer|printer|software|hardware|network|wifi|wi-fi|it support|email.*setup|email.*access|system.*error|access.*denied|two.?factor|2fa|antivirus|malware|virus/.test(text)) resolved = itDept;
+      else if (/employ.*verif|employment.?verif|verification.?letter|verif.*employ/.test(text)) resolved = hrDept;
       else if (/wfh|work.?from.?home|work from home|leave|salary|payroll|attendance|appraisal|performance.?review|joining|onboarding|resignation|offer.?letter|increment|promotion|transfer|pf\b|epf|esic|health.?insurance|id.?card|employee.?id|document.?request/.test(text)) resolved = hrDept;
       else if (/bgv|background.?check|background.?verif|reference.?check/.test(text)) resolved = bgvDept;
       else if (/invoic|payment|reimburs|expense|budget|finance|tax|audit|accounts|petty.?cash|purchase.?order|vendor.?payment/.test(text)) resolved = finDept;
@@ -156,6 +158,19 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       if (resolved) departmentId = resolved.id;
     }
 
+    // Build multi-dept assignment pool for certain ticket types
+    const tagList2: string[] = Array.isArray(tags) ? tags : [];
+    let assignmentPoolDeptIds: number[] = departmentId ? [departmentId] : [];
+    if (tagList2.includes("employment-verification")) {
+      const poolDepts = await db.select({ id: departmentsTable.id }).from(departmentsTable)
+        .where(sql`name ~* 'hr|human.?resource|admin|operat'`);
+      if (poolDepts.length > 0) assignmentPoolDeptIds = poolDepts.map(d => d.id);
+    } else if (tagList2.includes("bgv-request")) {
+      const poolDepts = await db.select({ id: departmentsTable.id }).from(departmentsTable)
+        .where(sql`name ~* 'admin|hr|human.?resource|bgv|background'`);
+      if (poolDepts.length > 0) assignmentPoolDeptIds = poolDepts.map(d => d.id);
+    }
+
     let slaDeadline: Date | null = null;
     let deptName: string | undefined;
     if (departmentId) {
@@ -163,15 +178,15 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       if (dept) { slaDeadline = new Date(Date.now() + dept.slaResolutionHours * 3600 * 1000); deptName = dept.name; }
     }
 
-    // Auto-assign to the department member with the fewest open tickets (round-robin by workload)
+    // Auto-assign from the pool (round-robin by workload)
     let resolvedAssigneeId: number | null = assigneeId ?? null;
-    if (!resolvedAssigneeId && departmentId) {
-      resolvedAssigneeId = await autoAssignForDepartment(departmentId);
+    if (!resolvedAssigneeId && assignmentPoolDeptIds.length > 0) {
+      resolvedAssigneeId = await autoAssignFromDepartments(assignmentPoolDeptIds);
     }
 
     const status = resolvedAssigneeId ? "assigned" : "open";
 
-    const [ticket] = await db.insert(ticketsTable).values({ ticketNumber, subject, description, priority, status, departmentId: departmentId ?? null, assigneeId: resolvedAssigneeId, createdById, tags, slaDeadline, raisedForName: raisedForName ?? null, raisedForEmail: raisedForEmail ?? null } as any).returning();
+    const [ticket] = await db.insert(ticketsTable).values({ ticketNumber, subject, description, priority, status, departmentId: departmentId ?? null, assigneeId: resolvedAssigneeId, createdById, tags, slaDeadline, raisedForName: raisedForName ?? null, raisedForEmail: raisedForEmail ?? null, ccEmails: Array.isArray(ccEmails) ? ccEmails : [] } as any).returning();
 
     await db.insert(ticketHistoryTable).values({ ticketId: ticket.id, action: "created", newValue: status, changedById: createdById });
 
@@ -202,6 +217,7 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
         createdByEmail: creator?.email,
         raisedForName: raisedForName ?? undefined,
         raisedForEmail: raisedForEmail ?? undefined,
+        ccEmails: Array.isArray(ccEmails) ? ccEmails : [],
       }).catch(() => {});
     }
 

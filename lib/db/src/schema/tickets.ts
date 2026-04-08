@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -20,6 +20,7 @@ export const ticketsTable = pgTable("tickets", {
   slaDeadline: timestamp("sla_deadline"),
   raisedForName: text("raised_for_name"),
   raisedForEmail: text("raised_for_email"),
+  ccEmails: text("cc_emails").array().notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

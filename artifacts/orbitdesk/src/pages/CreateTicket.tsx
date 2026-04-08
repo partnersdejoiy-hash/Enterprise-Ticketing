@@ -39,6 +39,11 @@ export default function CreateTicket() {
   const [raisingForOther, setRaisingForOther] = useState(false);
   const [empIdInput, setEmpIdInput] = useState("");
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const [lookupTab, setLookupTab] = useState<"id" | "name">("id");
+  const [nameInput, setNameInput] = useState("");
+  const [nameResults, setNameResults] = useState<Array<{ id: number; name: string; email: string; departmentName: string | null; employeeId?: string | null }>>([]);
+  const [ccManagers, setCcManagers] = useState(false);
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -146,6 +151,7 @@ export default function CreateTicket() {
   const lookupEmployee = useCallback(async () => {
     if (!empIdInput.trim()) return;
     setLookupState("loading");
+    setNameResults([]);
     try {
       const token = localStorage.getItem("auth_token");
       const res = await fetch(`/api/users/lookup?employeeId=${encodeURIComponent(empIdInput.trim())}`, {
@@ -166,6 +172,52 @@ export default function CreateTicket() {
     }
   }, [empIdInput, form, toast]);
 
+  const lookupByName = useCallback(async () => {
+    if (!nameInput.trim()) return;
+    setLookupState("loading");
+    setNameResults([]);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/users/lookup?name=${encodeURIComponent(nameInput.trim())}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const results = Array.isArray(data) ? data : [data];
+        setNameResults(results);
+        setLookupState(results.length > 0 ? "found" : "not_found");
+        if (results.length === 0) toast({ title: "Not found", description: "No users found with that name", variant: "destructive" });
+      } else {
+        setLookupState("not_found");
+        toast({ title: "Not found", description: "No users found with that name", variant: "destructive" });
+      }
+    } catch {
+      setLookupState("not_found");
+    }
+  }, [nameInput, toast]);
+
+  const applyNameResult = useCallback((user: { name: string; email: string }) => {
+    form.setValue("raisedForName", user.name, { shouldValidate: true });
+    form.setValue("raisedForEmail", user.email, { shouldValidate: true });
+    setNameResults([]);
+    setLookupState("found");
+  }, [form]);
+
+  const fetchDeptManagers = useCallback(async (deptId: string) => {
+    if (!deptId || deptId === "none") { setCcEmails([]); return; }
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/users?departmentId=${deptId}&role=manager`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const managers = Array.isArray(data) ? data : (data.users ?? []);
+        setCcEmails(managers.map((m: any) => m.email).filter(Boolean));
+      }
+    } catch { setCcEmails([]); }
+  }, []);
+
   const onSubmit = (values: FormValues) => {
     createTicket.mutate({
       data: {
@@ -179,6 +231,7 @@ export default function CreateTicket() {
           raisedForName: values.raisedForName,
           raisedForEmail: values.raisedForEmail || undefined,
         } : {}),
+        ccEmails: ccManagers ? ccEmails : [],
       } as any
     }, {
       onSuccess: async (ticket) => {
@@ -274,21 +327,74 @@ export default function CreateTicket() {
               {raisingForOther && (
                 <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Employee ID Lookup</label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Enter employee ID (e.g. EMP-001)"
-                        value={empIdInput}
-                        onChange={e => { setEmpIdInput(e.target.value); setLookupState("idle"); }}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); lookupEmployee(); }}}
-                        className="flex-1"
-                      />
-                      <Button type="button" variant="outline" size="sm" onClick={lookupEmployee} disabled={lookupState === "loading" || !empIdInput.trim()} className="flex-shrink-0 gap-1">
-                        {lookupState === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                        Lookup
-                      </Button>
+                    <label className="text-sm font-medium text-foreground">Employee Lookup</label>
+                    {/* Lookup mode tabs */}
+                    <div className="flex gap-1 p-0.5 bg-muted rounded-md w-fit">
+                      <button
+                        type="button"
+                        onClick={() => { setLookupTab("id"); setLookupState("idle"); setNameResults([]); }}
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${lookupTab === "id" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        By Employee ID
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setLookupTab("name"); setLookupState("idle"); setNameResults([]); }}
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${lookupTab === "name" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        By Employee Name
+                      </button>
                     </div>
-                    {lookupState === "found" && (
+                    {lookupTab === "id" ? (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter employee ID (e.g. EMP-001)"
+                          value={empIdInput}
+                          onChange={e => { setEmpIdInput(e.target.value); setLookupState("idle"); }}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); lookupEmployee(); }}}
+                          className="flex-1"
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={lookupEmployee} disabled={lookupState === "loading" || !empIdInput.trim()} className="flex-shrink-0 gap-1">
+                          {lookupState === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                          Lookup
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Enter employee name (partial match)"
+                            value={nameInput}
+                            onChange={e => { setNameInput(e.target.value); setLookupState("idle"); setNameResults([]); }}
+                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); lookupByName(); }}}
+                            className="flex-1"
+                          />
+                          <Button type="button" variant="outline" size="sm" onClick={lookupByName} disabled={lookupState === "loading" || !nameInput.trim()} className="flex-shrink-0 gap-1">
+                            {lookupState === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                            Search
+                          </Button>
+                        </div>
+                        {nameResults.length > 0 && (
+                          <div className="border border-border rounded-lg overflow-hidden divide-y divide-border">
+                            {nameResults.map(u => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => applyNameResult(u)}
+                                className="w-full text-left px-3 py-2.5 hover:bg-muted/60 transition-colors flex items-center justify-between gap-2"
+                              >
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">{u.name}</p>
+                                  <p className="text-xs text-muted-foreground">{u.email}{u.departmentName ? ` · ${u.departmentName}` : ""}{u.employeeId ? ` · ${u.employeeId}` : ""}</p>
+                                </div>
+                                <span className="text-xs text-primary flex-shrink-0">Select</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {lookupState === "found" && nameResults.length === 0 && (
                       <div className="flex items-center gap-1.5 text-xs text-emerald-600">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Employee found – details auto-filled below
@@ -297,7 +403,7 @@ export default function CreateTicket() {
                     {lookupState === "not_found" && (
                       <div className="flex items-center gap-1.5 text-xs text-destructive">
                         <XCircle className="h-3.5 w-3.5" />
-                        No employee found with that ID. You can enter details manually.
+                        No employee found. You can enter details manually below.
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">Or fill in the details manually below</p>
@@ -414,7 +520,13 @@ export default function CreateTicket() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Department</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select
+                            onValueChange={(val) => {
+                              field.onChange(val);
+                              if (ccManagers) fetchDeptManagers(val);
+                            }}
+                            value={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select department" />
@@ -431,6 +543,46 @@ export default function CreateTicket() {
                         </FormItem>
                       )}
                     />
+                  </div>
+
+                  {/* CC Managers Toggle */}
+                  <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
+                    <input
+                      type="checkbox"
+                      id="cc-managers"
+                      checked={ccManagers}
+                      onChange={e => {
+                        setCcManagers(e.target.checked);
+                        if (e.target.checked) {
+                          const deptId = form.getValues("departmentId");
+                          if (deptId && deptId !== "none") fetchDeptManagers(deptId);
+                        } else {
+                          setCcEmails([]);
+                        }
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <label htmlFor="cc-managers" className="text-sm font-medium text-foreground cursor-pointer select-none">
+                        CC department managers
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Managers of the selected department will receive a copy of ticket notifications.
+                      </p>
+                      {ccManagers && ccEmails.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {ccEmails.map(email => (
+                            <span key={email} className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">CC</Badge>
+                              {email}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {ccManagers && ccEmails.length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">Select a department above to load managers.</p>
+                      )}
+                    </div>
                   </div>
 
                   <FormField

@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2, Shield } from "lucide-react";
+import { Loader2, CheckCircle2, Shield, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -77,6 +77,7 @@ export default function Login() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
+  const [accessRevoked, setAccessRevoked] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -84,14 +85,20 @@ export default function Login() {
   });
 
   const onSubmit = (data: LoginFormValues) => {
+    setAccessRevoked(false);
     loginMutation.mutate({ data }, {
       onSuccess: (res) => {
         setAuth(res.token, res.user);
         toast({ title: "Login successful", description: `Welcome back, ${res.user.name}` });
         setLocation("/dashboard");
       },
-      onError: (err) => {
-        toast({ title: "Login failed", description: err.message || "An error occurred", variant: "destructive" });
+      onError: (err: any) => {
+        const msg: string = err?.message || "";
+        if (msg.toLowerCase().includes("not authorised") || msg.toLowerCase().includes("access") && msg.toLowerCase().includes("revoked") || err?.error === "AccessRevoked") {
+          setAccessRevoked(true);
+        } else {
+          toast({ title: "Login failed", description: msg || "An error occurred", variant: "destructive" });
+        }
       },
     });
   };
@@ -174,6 +181,15 @@ export default function Login() {
               <CardDescription className="text-gray-500">Sign in to access your workspace</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {accessRevoked && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800">
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-500" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Access Revoked</p>
+                    <p className="text-sm mt-0.5 leading-relaxed">You are not authorised to utilise this tool. Please contact your supervisor or administration.</p>
+                  </div>
+                </div>
+              )}
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
