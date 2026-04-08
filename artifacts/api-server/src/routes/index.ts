@@ -12,6 +12,7 @@ import automationRulesRouter from "./automationRules";
 import publicRequestRouter from "./publicRequest";
 import attachmentsRouter from "./attachments";
 import emailAccountsRouter from "./emailAccounts";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(automationRulesRouter);
 router.use(publicRequestRouter);
 router.use(attachmentsRouter);
 router.use(emailAccountsRouter);
+router.use("/webhooks", webhooksRouter);
 
 export default router;

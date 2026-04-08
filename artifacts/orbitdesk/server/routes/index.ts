@@ -11,6 +11,7 @@ import settingsRouter from "./settings.js";
 import publicRequestRouter from "./publicRequest.js";
 import attachmentsRouter from "./attachments.js";
 import emailAccountsRouter from "./emailAccounts.js";
+import webhooksRouter from "./webhooks.js";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use(permissionsRouter);
 router.use(settingsRouter);
 router.use(attachmentsRouter);
 router.use(emailAccountsRouter);
+router.use("/webhooks", webhooksRouter);
 
 export default router;

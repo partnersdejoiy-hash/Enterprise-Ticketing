@@ -35,3 +35,16 @@ export const emailAccountsTable = pgTable("email_accounts", {
 });
 
 export type EmailAccount = typeof emailAccountsTable.$inferSelect;
+
+export const webhookEndpointsTable = pgTable("webhook_endpoints", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  events: text("events").array().notNull().default([]),
+  secretHeader: text("secret_header").default(""),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type WebhookEndpoint = typeof webhookEndpointsTable.$inferSelect;

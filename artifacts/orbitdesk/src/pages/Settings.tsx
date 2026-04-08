@@ -19,7 +19,8 @@ import {
   User, Bell, Settings as SettingsIcon, Shield, Mail, Globe,
   Zap, Copy, CheckCircle2, Loader2, ShieldCheck, Lock, Info,
   Eye, EyeOff, Send, RefreshCw, ToggleLeft, ToggleRight, Inbox, Wifi,
-  Plus, Trash2, Pencil, Star, StarOff, ServerCog, FlaskConical, X, Building2
+  Plus, Trash2, Pencil, Star, StarOff, ServerCog, FlaskConical, X, Building2,
+  Webhook, Link2, RotateCcw, AlertTriangle, ExternalLink
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose
@@ -659,6 +660,354 @@ const BLANK_ACCOUNT: Omit<EmailAccount, "id"> = {
   departmentId: null,
 };
 
+// ─── Webhook types ─────────────────────────────────────────────────────────────
+const WEBHOOK_EVENTS = [
+  { value: "ticket.created", label: "Ticket Created" },
+  { value: "ticket.updated", label: "Ticket Updated" },
+  { value: "ticket.closed", label: "Ticket Closed" },
+  { value: "comment.added", label: "Comment Added" },
+  { value: "ticket.assigned", label: "Ticket Assigned" },
+  { value: "*", label: "All Events" },
+];
+
+interface WEndpoint {
+  id: number;
+  name: string;
+  url: string;
+  events: string[];
+  secretHeader: string;
+  enabled: boolean;
+}
+
+const BLANK_WEP: Omit<WEndpoint, "id"> = {
+  name: "", url: "", events: [], secretHeader: "", enabled: true,
+};
+
+function WebhooksSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const { toast } = useToast();
+  const [inboundSecret, setInboundSecret] = useState("");
+  const [endpoints, setEndpoints] = useState<WEndpoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<WEndpoint | null>(null);
+  const [form, setForm] = useState<Omit<WEndpoint, "id">>(BLANK_WEP);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<number | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const token = () => localStorage.getItem("auth_token");
+  const hdrs = (json = true) => ({
+    Authorization: `Bearer ${token()}`,
+    ...(json ? { "Content-Type": "application/json" } : {}),
+  });
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const inboundUrl = inboundSecret ? `${baseUrl}/api/webhooks/inbound/${inboundSecret}` : "";
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/webhooks/config", { headers: hdrs(false) });
+      if (res.ok) {
+        const data = await res.json();
+        setInboundSecret(data.inboundSecret ?? "");
+        setEndpoints(data.endpoints ?? []);
+      }
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(inboundUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const regenerate = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/webhooks/config/regenerate-secret", { method: "POST", headers: hdrs(false) });
+      if (!res.ok) throw new Error("Regenerate failed");
+      const data = await res.json();
+      setInboundSecret(data.inboundSecret);
+      toast({ title: "Secret regenerated", description: "Update your webhook integrations with the new URL." });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setRegenerating(false); setConfirmRegen(false); }
+  };
+
+  const upd = (k: keyof typeof form, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+
+  const toggleEvent = (ev: string) => {
+    setForm(p => ({
+      ...p,
+      events: p.events.includes(ev) ? p.events.filter(e => e !== ev) : [...p.events, ev],
+    }));
+  };
+
+  const openAdd = () => { setEditing(null); setForm(BLANK_WEP); setOpen(true); };
+  const openEdit = (ep: WEndpoint) => { setEditing(ep); setForm({ ...ep }); setOpen(true); };
+
+  const save = async () => {
+    if (!form.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
+    if (!form.url.trim()) { toast({ title: "URL required", variant: "destructive" }); return; }
+    try { new URL(form.url); } catch { toast({ title: "Invalid URL", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const url = editing ? `/api/webhooks/endpoints/${editing.id}` : "/api/webhooks/endpoints";
+      const method = editing ? "PUT" : "POST";
+      const res = await fetch(url, { method, headers: hdrs(), body: JSON.stringify(form) });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Save failed"); }
+      toast({ title: editing ? "Webhook updated" : "Webhook created" });
+      setOpen(false);
+      await load();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const del = async (id: number) => {
+    try {
+      const res = await fetch(`/api/webhooks/endpoints/${id}`, { method: "DELETE", headers: hdrs(false) });
+      if (!res.ok) throw new Error("Delete failed");
+      toast({ title: "Webhook deleted" });
+      setEndpoints(p => p.filter(e => e.id !== id));
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const testEp = async (id: number) => {
+    setTesting(id);
+    try {
+      const res = await fetch(`/api/webhooks/endpoints/${id}/test`, { method: "POST", headers: hdrs(false) });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Test successful", description: `Responded with HTTP ${data.status}` });
+      } else {
+        toast({ title: "Test failed", description: data.error ?? "No response", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Test failed", description: e.message, variant: "destructive" });
+    } finally { setTesting(null); }
+  };
+
+  const toggleEnabled = async (ep: WEndpoint) => {
+    try {
+      const res = await fetch(`/api/webhooks/endpoints/${ep.id}`, {
+        method: "PUT", headers: hdrs(),
+        body: JSON.stringify({ ...ep, enabled: !ep.enabled }),
+      });
+      if (!res.ok) throw new Error();
+      setEndpoints(p => p.map(e => e.id === ep.id ? { ...e, enabled: !ep.enabled } : e));
+    } catch { toast({ title: "Error", variant: "destructive" }); }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">Webhooks</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Receive ticket events via inbound webhooks or push events to external systems.
+        </p>
+      </div>
+
+      {/* ── Inbound Webhook ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-blue-500" /> Inbound Webhook URL
+          </CardTitle>
+          <CardDescription>
+            POST email payloads to this URL to auto-create tickets. The secret in the URL keeps your endpoint private.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input readOnly value={inboundUrl} className="font-mono text-xs bg-muted flex-1" />
+                <Button variant="outline" size="sm" className="gap-1 shrink-0" onClick={copyUrl}>
+                  {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              {isSuperAdmin && (
+                confirmRegen ? (
+                  <div className="flex items-center gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">This will break existing integrations using the old URL. Continue?</span>
+                    <Button size="sm" variant="destructive" disabled={regenerating} onClick={regenerate} className="gap-1">
+                      {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                      Regenerate
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setConfirmRegen(false)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                    onClick={() => setConfirmRegen(true)}>
+                    <RotateCcw className="h-3.5 w-3.5" /> Regenerate Secret
+                  </Button>
+                )
+              )}
+              <p className="text-xs text-muted-foreground">
+                Supported by Mailgun, SendGrid Inbound Parse, and any service that POSTs JSON email payloads.
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Outgoing Webhooks ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ExternalLink className="h-4 w-4 text-purple-500" /> Outgoing Webhooks
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Push ticket events to Slack, Jira, Zapier, or any custom endpoint.
+              </CardDescription>
+            </div>
+            {isSuperAdmin && (
+              <Button size="sm" className="gap-1.5 shrink-0" onClick={openAdd}>
+                <Plus className="h-3.5 w-3.5" /> Add Webhook
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : endpoints.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              <Webhook className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+              No outgoing webhooks configured yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {endpoints.map(ep => (
+                <div key={ep.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                  <div className="mt-0.5">
+                    <Webhook className={`h-4 w-4 ${ep.enabled ? "text-purple-500" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{ep.name}</span>
+                      {!ep.enabled && <Badge variant="secondary" className="text-xs">Disabled</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{ep.url}</p>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {ep.events.length === 0 || ep.events.includes("*") ? (
+                        <Badge variant="outline" className="text-xs">All Events</Badge>
+                      ) : ep.events.map(ev => (
+                        <Badge key={ev} variant="outline" className="text-xs">
+                          {WEBHOOK_EVENTS.find(e => e.value === ev)?.label ?? ev}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1"
+                      disabled={testing === ep.id}
+                      onClick={() => testEp(ep.id)}>
+                      {testing === ep.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                      Test
+                    </Button>
+                    {isSuperAdmin && (
+                      <>
+                        <Switch checked={ep.enabled} onCheckedChange={() => toggleEnabled(ep)} className="scale-75" />
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(ep)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                          onClick={() => del(ep.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Add/Edit Dialog ── */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Webhook" : "Add Outgoing Webhook"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input placeholder="e.g. Slack Notifications" value={form.name}
+                onChange={e => upd("name", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Endpoint URL</Label>
+              <Input placeholder="https://hooks.slack.com/services/…" value={form.url}
+                onChange={e => upd("url", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Events to trigger on</Label>
+              <div className="flex flex-wrap gap-2">
+                {WEBHOOK_EVENTS.map(ev => {
+                  const active = form.events.includes(ev.value);
+                  return (
+                    <button key={ev.value} type="button"
+                      onClick={() => toggleEvent(ev.value)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        active
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                      }`}>
+                      {ev.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">Leave empty to receive all events.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Secret Header Value <span className="text-muted-foreground">(optional)</span></Label>
+              <Input placeholder="Sent as X-OrbitDesk-Secret header" value={form.secretHeader}
+                onChange={e => upd("secretHeader", e.target.value)} />
+              <p className="text-xs text-muted-foreground">Your receiving server can verify this value to confirm the request is from OrbitDesk.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={form.enabled} onCheckedChange={v => upd("enabled", v)} id="ep-enabled" />
+              <Label htmlFor="ep-enabled">Enabled</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={save} disabled={saving} className="gap-1.5">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {editing ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function EmailAccountsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -1105,6 +1454,11 @@ export default function Settings() {
                 <TabsTrigger value="email-accounts" className="gap-1.5">
                   <ServerCog className="h-3.5 w-3.5" /> Email Accounts
                 </TabsTrigger>
+                {isSuperAdmin && (
+                  <TabsTrigger value="webhooks" className="gap-1.5">
+                    <Webhook className="h-3.5 w-3.5" /> Webhooks
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="email-integration" className="gap-1.5">
                   <Mail className="h-3.5 w-3.5" /> Email Routing
                 </TabsTrigger>
@@ -1262,6 +1616,13 @@ export default function Settings() {
           {canAdmin && (
             <TabsContent value="email-accounts">
               <EmailAccountsSection isSuperAdmin={isSuperAdmin} />
+            </TabsContent>
+          )}
+
+          {/* ── Webhooks ── */}
+          {isSuperAdmin && (
+            <TabsContent value="webhooks">
+              <WebhooksSection isSuperAdmin={isSuperAdmin} />
             </TabsContent>
           )}
 
