@@ -39,7 +39,7 @@ router.get("/users", authMiddleware, async (req, res) => {
     const conditions = [];
 
     if (role) {
-      conditions.push(eq(usersTable.role, role as string));
+      conditions.push(eq(usersTable.role, role as Role));
     }
     if (departmentId) {
       conditions.push(eq(usersTable.departmentId, parseInt(departmentId as string, 10)));
@@ -138,7 +138,7 @@ router.patch("/users/bulk-role", authMiddleware, async (req: AuthenticatedReques
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const { userIds, role } = req.body as { userIds: number[]; role: string };
+    const { userIds, role } = req.body as { userIds: number[]; role: Role };
     if (!Array.isArray(userIds) || !userIds.length || !ROLES.includes(role as Role)) {
       res.status(400).json({ error: "Bad Request", message: "userIds array and valid role required" });
       return;
@@ -275,7 +275,7 @@ router.post("/users/bulk", authMiddleware, async (req, res) => {
 
       try {
         const passwordHash = hashPassword(password);
-        const [user] = await db.insert(usersTable).values({ name, email, passwordHash, role, departmentId }).returning();
+        const [user] = await db.insert(usersTable).values({ name, email, passwordHash, role: role as Role, departmentId }).returning();
         created.push(user.id);
       } catch (e: any) {
         if (e?.code === "23505") errors.push({ row: i + 1, error: `Email "${email}" already exists` });

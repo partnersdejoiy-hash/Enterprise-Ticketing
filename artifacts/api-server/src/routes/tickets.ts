@@ -53,8 +53,8 @@ router.get("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =>
       }
     }
 
-    if (status) conditions.push(eq(ticketsTable.status, status as string));
-    if (priority) conditions.push(eq(ticketsTable.priority, priority as string));
+    if (status) conditions.push(eq(ticketsTable.status, status as "open" | "assigned" | "in_progress" | "waiting" | "resolved" | "closed"));
+    if (priority) conditions.push(eq(ticketsTable.priority, priority as "low" | "medium" | "high" | "urgent"));
     if (departmentId) conditions.push(eq(ticketsTable.departmentId, parseInt(departmentId as string, 10)));
     if (assigneeId) conditions.push(eq(ticketsTable.assigneeId, parseInt(assigneeId as string, 10)));
     if (search) {
@@ -494,7 +494,7 @@ router.post("/tickets/bulk", authMiddleware, async (req: AuthenticatedRequest, r
       if (!subject) { errors.push({ row: i + 1, error: "subject is required" }); continue; }
 
       const priority = (["low", "medium", "high", "urgent"].includes(row.priority?.trim().toLowerCase()) ? row.priority.trim().toLowerCase() : "medium") as "low" | "medium" | "high" | "urgent";
-      const status = (["open", "in_progress", "pending", "resolved", "closed"].includes(row.status?.trim().toLowerCase()) ? row.status.trim().toLowerCase() : "open") as "open" | "in_progress" | "pending" | "resolved" | "closed";
+      const status = (["open", "assigned", "in_progress", "waiting", "resolved", "closed"].includes(row.status?.trim().toLowerCase()) ? row.status.trim().toLowerCase() : "open") as "open" | "assigned" | "in_progress" | "waiting" | "resolved" | "closed";
 
       let departmentId: number | null = null;
       if (row.department_name?.trim()) {
