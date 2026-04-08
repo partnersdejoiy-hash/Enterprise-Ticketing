@@ -142,7 +142,8 @@ export default function CreateTicket() {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {/* Quick Templates */}
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs font-medium text-muted-foreground mr-1">Quick templates:</span>
@@ -277,9 +278,7 @@ export default function CreateTicket() {
                 Ticket Details
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <CardContent className="space-y-4">
                   <FormField
                     control={form.control}
                     name="subject"
@@ -411,11 +410,10 @@ export default function CreateTicket() {
                       Create Ticket
                     </Button>
                   </div>
-                </form>
-              </Form>
             </CardContent>
           </Card>
-        </div>
+        </form>
+        </Form>
       </div>
     </AppLayout>
   );

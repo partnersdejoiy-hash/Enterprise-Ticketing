@@ -389,6 +389,17 @@ export default function TicketDetail() {
                   <span className="text-muted-foreground">Created by</span>
                   <span className="font-medium text-foreground">{ticket.createdByName}</span>
                 </div>
+                {(ticket as any).raisedForName && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Raised for</span>
+                    <div className="text-right">
+                      <span className="font-medium text-foreground block">{(ticket as any).raisedForName}</span>
+                      {(ticket as any).raisedForEmail && (
+                        <span className="text-xs text-muted-foreground">{(ticket as any).raisedForEmail}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Created</span>
                   <span className="text-foreground">{formatDateTime(ticket.createdAt)}</span>
