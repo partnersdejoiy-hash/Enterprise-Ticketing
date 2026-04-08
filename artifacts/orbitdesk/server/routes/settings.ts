@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth";
 import { getEmailConfig, saveEmailConfig, sendEmail } from "../lib/emailService";
+import { getImapConfig, saveImapConfig, testImapConnection, restartImapPoller } from "../lib/imapService";
 
 const router = Router();
 
@@ -62,6 +63,49 @@ router.post("/settings/email/test", authMiddleware, async (req: AuthenticatedReq
     res.json({ message: `Test email sent to ${testTo}` });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to send test email", details: err.message });
+  }
+});
+
+// ─── IMAP (Incoming Email) ──────────────────────────────────────────────────────
+
+router.get("/settings/imap", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  if (req.user!.role !== "super_admin" && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  try {
+    const cfg = await getImapConfig();
+    res.json({ ...cfg, pass: cfg.pass ? "••••••••" : "" });
+  } catch { res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.put("/settings/imap", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  if (req.user!.role !== "super_admin") {
+    res.status(403).json({ error: "Forbidden", message: "Only Super Admins can update IMAP settings" }); return;
+  }
+  try {
+    const { enabled, host, port, secure, user, pass, mailbox, pollInterval, toAddress } = req.body;
+    await saveImapConfig({ enabled, host, port, secure, user, pass, mailbox, pollInterval, toAddress });
+    await restartImapPoller();
+    res.json({ message: "IMAP settings updated" });
+  } catch (err) {
+    console.error("Update IMAP settings error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/settings/imap/test", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  if (req.user!.role !== "super_admin") {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  try {
+    const result = await testImapConnection();
+    if (!result.ok) {
+      res.status(400).json({ error: result.message });
+    } else {
+      res.json({ message: result.message, unseen: result.unseen });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: "Test failed", details: err.message });
   }
 });
 

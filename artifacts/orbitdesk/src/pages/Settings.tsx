@@ -18,7 +18,7 @@ import { useAllPermissions, type RolePermissions } from "@/hooks/usePermissions"
 import {
   User, Bell, Settings as SettingsIcon, Shield, Mail, Globe,
   Zap, Copy, CheckCircle2, Loader2, ShieldCheck, Lock, Info,
-  Eye, EyeOff, Send, RefreshCw, ToggleLeft, ToggleRight
+  Eye, EyeOff, Send, RefreshCw, ToggleLeft, ToggleRight, Inbox, Wifi
 } from "lucide-react";
 
 // ─── Role hierarchy ────────────────────────────────────────────────────────────
@@ -444,6 +444,198 @@ function EmailConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   );
 }
 
+// ─── IMAP Config form ──────────────────────────────────────────────────────────
+interface ImapConfig {
+  enabled: boolean; host: string; port: number; secure: boolean;
+  user: string; pass: string; mailbox: string; pollInterval: number; toAddress: string;
+}
+
+function ImapConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const { toast } = useToast();
+  const [cfg, setCfg] = useState<ImapConfig>({ enabled: false, host: "", port: 993, secure: true, user: "", pass: "", mailbox: "INBOX", pollInterval: 5, toAddress: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    fetch("/api/settings/imap", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setCfg(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const upd = (k: keyof ImapConfig, v: string | boolean | number) => { setCfg(p => ({ ...p, [k]: v })); setDirty(true); setTestResult(null); };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/settings/imap", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(cfg),
+      });
+      if (!res.ok) throw new Error((await res.json()).message ?? "Save failed");
+      setDirty(false);
+      toast({ title: "IMAP settings saved", description: "Incoming email configuration updated successfully." });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/settings/imap/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTestResult({ ok: false, message: data.error ?? "Test failed" });
+        toast({ title: "Connection failed", description: data.error, variant: "destructive" });
+      } else {
+        setTestResult({ ok: true, message: data.message });
+        toast({ title: "Connected!", description: data.message });
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, message: e.message });
+      toast({ title: "Test failed", description: e.message, variant: "destructive" });
+    } finally { setTesting(false); }
+  };
+
+  if (loading) return <Card><CardContent className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></CardContent></Card>;
+
+  const isReadonly = !isSuperAdmin;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-muted-foreground" /> Incoming Email (IMAP)
+          </CardTitle>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => upd("enabled", !cfg.enabled)}
+              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full transition-colors ${cfg.enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+            >
+              {cfg.enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+              {cfg.enabled ? "Enabled" : "Disabled"}
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Emails sent to your support inbox will be automatically converted to tickets. OrbitDesk polls this mailbox every few minutes.
+        </p>
+        {!isSuperAdmin && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+            <Lock className="h-3 w-3" /> Only Super Admins can modify incoming email settings.
+          </p>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {!cfg.enabled && isSuperAdmin && (
+          <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-blue-700">IMAP polling is disabled. Enable it above and configure your mailbox to start receiving tickets from email.</p>
+          </div>
+        )}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">IMAP Server</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label>IMAP Host</Label>
+              <Input placeholder="imap.gmail.com" value={cfg.host} onChange={e => upd("host", e.target.value)} disabled={isReadonly} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Port</Label>
+              <Input type="number" placeholder="993" value={cfg.port} onChange={e => upd("port", parseInt(e.target.value) || 993)} disabled={isReadonly} />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Switch checked={cfg.secure} onCheckedChange={v => upd("secure", v)} disabled={isReadonly} />
+            <Label className="text-sm font-normal cursor-pointer">Use TLS/SSL (recommended — port 993)</Label>
+          </div>
+        </div>
+        <Separator />
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Mailbox Credentials</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>IMAP Username</Label>
+              <Input placeholder="support@yourcompany.com" value={cfg.user} onChange={e => upd("user", e.target.value)} disabled={isReadonly} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>IMAP Password / App Password</Label>
+              <div className="relative">
+                <Input type={showPass ? "text" : "password"} placeholder="••••••••" value={cfg.pass} onChange={e => upd("pass", e.target.value)} disabled={isReadonly} className="pr-9" />
+                <button type="button" className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground" onClick={() => setShowPass(p => !p)}>
+                  {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">For Gmail, use an App Password (not your account password).</p>
+            </div>
+          </div>
+        </div>
+        <Separator />
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Polling Settings</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label>Mailbox / Folder</Label>
+              <Input placeholder="INBOX" value={cfg.mailbox} onChange={e => upd("mailbox", e.target.value)} disabled={isReadonly} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Poll Interval (minutes)</Label>
+              <Input type="number" min={1} max={60} placeholder="5" value={cfg.pollInterval} onChange={e => upd("pollInterval", Math.max(1, parseInt(e.target.value) || 5))} disabled={isReadonly} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Support Inbox Address <span className="text-muted-foreground text-[10px]">(display only)</span></Label>
+              <Input type="email" placeholder="support@yourcompany.com" value={cfg.toAddress} onChange={e => upd("toAddress", e.target.value)} disabled={isReadonly} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Unread emails are fetched and converted to tickets automatically. Processed emails are marked as read in the mailbox.
+          </p>
+        </div>
+
+        {testResult && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${testResult.ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+            {testResult.ok ? <Wifi className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" /> : <Info className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />}
+            <p className={`text-sm ${testResult.ok ? "text-emerald-700" : "text-red-700"}`}>{testResult.message}</p>
+          </div>
+        )}
+
+        {isSuperAdmin && (
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={testConnection} disabled={testing || !cfg.host || !cfg.user} className="gap-1.5">
+              {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+              {testing ? "Testing…" : "Test Connection"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setDirty(false); setTestResult(null); }} disabled={saving || !dirty}>
+              Discard
+            </Button>
+            <Button size="sm" onClick={save} disabled={saving || !dirty} className="gap-1.5">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {saving ? "Saving…" : "Save Settings"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Settings page ────────────────────────────────────────────────────────
 export default function Settings() {
   const { user } = useAuthStore();
@@ -791,7 +983,10 @@ export default function Settings() {
           {/* ── Email Notifications ── */}
           {canAdmin && (
             <TabsContent value="email-notifications">
-              <EmailConfigSection isSuperAdmin={user?.role === "super_admin"} />
+              <div className="space-y-4">
+                <EmailConfigSection isSuperAdmin={user?.role === "super_admin"} />
+                <ImapConfigSection isSuperAdmin={user?.role === "super_admin"} />
+              </div>
             </TabsContent>
           )}
 

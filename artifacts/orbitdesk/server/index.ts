@@ -1,4 +1,5 @@
 import app from "./app.js";
+import { startImapPoller } from "./lib/imapService.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const port = isProduction
@@ -7,4 +8,5 @@ const port = isProduction
 
 app.listen(port, () => {
   console.log(`[server] API listening on port ${port} (${isProduction ? "production" : "development"})`);
+  startImapPoller().catch(e => console.error("[imap] Failed to start poller:", e));
 });
