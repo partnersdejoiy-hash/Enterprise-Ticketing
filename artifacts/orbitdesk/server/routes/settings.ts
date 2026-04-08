@@ -54,15 +54,41 @@ router.post("/settings/email/test", authMiddleware, async (req: AuthenticatedReq
   }
   try {
     const testTo = req.body.to || req.user!.email;
-    await sendEmail(testTo, "[OrbitDesk] Test Email", `
-      <h2>Test Email from OrbitDesk</h2>
-      <p>This is a test email sent from OrbitDesk to verify your SMTP configuration.</p>
-      <p>If you received this, your email settings are working correctly.</p>
-      <p>Sent at: ${new Date().toISOString()}</p>
+    if (!testTo) { res.status(400).json({ error: "Recipient email is required" }); return; }
+
+    // Determine which SMTP source will be used
+    const { db, emailAccountsTable } = await import("@workspace/db");
+    const accounts = await db.select().from(emailAccountsTable);
+    const primary = accounts.find((a: any) => a.isPrimarySender && a.smtpEnabled && a.smtpHost && a.smtpUser);
+    const anySmtp = accounts.find((a: any) => a.smtpEnabled && a.smtpHost && a.smtpUser);
+    const chosen = primary ?? anySmtp;
+    const smtpSource = chosen
+      ? `Email Account: "${chosen.name}" (${chosen.smtpFromEmail || chosen.smtpUser})`
+      : "Legacy SMTP (Email Notifications settings)";
+
+    const sentAt = new Date().toISOString();
+    await sendEmail(testTo, "[OrbitDesk] SMTP Test Email", `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
+        <h2 style="color:#1e40af;margin-top:0">✅ OrbitDesk SMTP Test</h2>
+        <p style="color:#374151">Your SMTP configuration is working correctly. This test email was sent successfully.</p>
+        <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:13px">
+          <tr><td style="padding:6px 0;color:#6b7280;width:120px">Sent to</td><td style="padding:6px 0;color:#111827;font-weight:600">${testTo}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Sent via</td><td style="padding:6px 0;color:#111827">${smtpSource}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Sent at</td><td style="padding:6px 0;color:#111827">${sentAt}</td></tr>
+        </table>
+        <p style="margin-top:20px;font-size:12px;color:#9ca3af">Powered by Dejoiy OrbitDesk</p>
+      </div>
     `);
-    res.json({ message: `Test email sent to ${testTo}` });
+    res.json({ message: `Test email sent to ${testTo}`, via: smtpSource });
   } catch (err: any) {
-    res.status(500).json({ error: "Failed to send test email", details: err.message });
+    const msg = err.message ?? String(err);
+    let hint = "";
+    if (/ECONNREFUSED/.test(msg)) hint = "The SMTP server refused the connection — check the host and port.";
+    else if (/ENOTFOUND|getaddrinfo/.test(msg)) hint = "Cannot resolve the SMTP host — check for typos in the hostname.";
+    else if (/auth|535|534|Invalid credentials/i.test(msg)) hint = "Authentication failed — verify your SMTP username and password. For Gmail use an App Password.";
+    else if (/timeout|ETIMEDOUT/i.test(msg)) hint = "Connection timed out — the SMTP server is not reachable. Check firewall or port settings.";
+    else if (/no smtp configured|not configured/i.test(msg)) hint = "No SMTP account is configured. Add one in Settings → Email Accounts or configure the legacy SMTP in Email Notifications.";
+    res.status(500).json({ error: "Failed to send test email", details: msg, hint });
   }
 });
 

@@ -69,7 +69,22 @@ export async function testImapConnection(): Promise<{ ok: boolean; message: stri
     return { ok: true, message: `Connected successfully. Mailbox "${cfg.mailbox || "INBOX"}" has ${status.messages} messages (${status.unseen ?? 0} unread).`, unseen: status.unseen ?? 0 };
   } catch (err: any) {
     try { await client.logout(); } catch {}
-    return { ok: false, message: `Connection failed: ${err.message}` };
+    const msg = err.message ?? String(err);
+    let friendly = `Connection failed: ${msg}`;
+    if (/AUTHENTICATIONFAILED|Invalid credentials|auth.*fail/i.test(msg)) {
+      friendly = "Authentication failed — the username or password is incorrect. For Gmail, use an App Password instead of your account password.";
+    } else if (/Command failed/i.test(msg)) {
+      friendly = "Command failed — the server rejected the IMAP command. Check your username/password, and ensure IMAP access is enabled in your mail provider settings (e.g. Gmail → Settings → See all settings → Forwarding and POP/IMAP → Enable IMAP).";
+    } else if (/ECONNREFUSED/i.test(msg)) {
+      friendly = `Connection refused on port ${cfg.port} — the IMAP server is not accepting connections. Check the host name and port number.`;
+    } else if (/ENOTFOUND|getaddrinfo/i.test(msg)) {
+      friendly = `Cannot resolve host "${cfg.host}" — check the IMAP host name for typos.`;
+    } else if (/ETIMEDOUT|timeout/i.test(msg)) {
+      friendly = `Connection timed out — the server at "${cfg.host}:${cfg.port}" is not responding. Check your firewall or VPN settings.`;
+    } else if (/SELF_SIGNED|certificate/i.test(msg)) {
+      friendly = "TLS certificate error — try disabling TLS/SSL if your server uses a self-signed certificate.";
+    }
+    return { ok: false, message: friendly };
   }
 }
 

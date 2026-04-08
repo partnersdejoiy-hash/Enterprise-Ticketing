@@ -242,6 +242,7 @@ function EmailConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [showPass, setShowPass] = useState(false);
   const [testTo, setTestTo] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<{ ok: boolean; message: string; via?: string; hint?: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
@@ -273,6 +274,7 @@ function EmailConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   const testEmail = async () => {
     setTesting(true);
+    setEmailTestResult(null);
     try {
       const token = localStorage.getItem("auth_token");
       const res = await fetch("/api/settings/email/test", {
@@ -281,9 +283,15 @@ function EmailConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         body: JSON.stringify({ to: testTo }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.details ?? data.error ?? "Test failed");
-      toast({ title: "Test email sent!", description: data.message });
+      if (!res.ok) {
+        setEmailTestResult({ ok: false, message: data.details ?? data.error ?? "Test failed", hint: data.hint });
+        toast({ title: "Test failed", description: data.details ?? data.error, variant: "destructive" });
+      } else {
+        setEmailTestResult({ ok: true, message: data.message, via: data.via });
+        toast({ title: "Test email sent!", description: data.message });
+      }
     } catch (e: any) {
+      setEmailTestResult({ ok: false, message: e.message });
       toast({ title: "Test failed", description: e.message, variant: "destructive" });
     } finally { setTesting(false); }
   };
@@ -389,28 +397,58 @@ function EmailConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       </Card>
 
       {isSuperAdmin && (
-        <Card>
+        <Card className="border-blue-100">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Send className="h-4 w-4 text-blue-500" /> Test Email
+              <Send className="h-4 w-4 text-blue-500" /> Send Test Email
             </CardTitle>
+            <CardDescription>
+              Send a real email to confirm your SMTP is working. OrbitDesk will use the primary configured account — either from <strong>Email Accounts</strong> or the legacy SMTP settings above.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Send a test email to verify your SMTP configuration is working correctly.</p>
             <div className="flex gap-2">
               <Input
                 type="email"
                 placeholder="recipient@example.com"
                 value={testTo}
-                onChange={e => setTestTo(e.target.value)}
+                onChange={e => { setTestTo(e.target.value); setEmailTestResult(null); }}
                 className="flex-1"
               />
-              <Button size="sm" variant="outline" onClick={testEmail} disabled={testing || !testTo || !cfg.host} className="gap-1.5 flex-shrink-0">
+              <Button size="sm" onClick={testEmail} disabled={testing || !testTo.trim()} className="gap-1.5 flex-shrink-0">
                 {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 {testing ? "Sending…" : "Send Test"}
               </Button>
             </div>
-            {!cfg.host && <p className="text-xs text-muted-foreground">Configure SMTP host above before testing.</p>}
+
+            {emailTestResult && (
+              <div className={`rounded-lg border px-4 py-3 space-y-1.5 ${emailTestResult.ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+                <div className="flex items-center gap-2">
+                  {emailTestResult.ok
+                    ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    : <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />}
+                  <p className={`text-sm font-medium ${emailTestResult.ok ? "text-emerald-800" : "text-red-800"}`}>
+                    {emailTestResult.ok ? "Email sent successfully!" : "Sending failed"}
+                  </p>
+                </div>
+                {emailTestResult.via && (
+                  <p className="text-xs text-emerald-700 pl-6">Sent via: {emailTestResult.via}</p>
+                )}
+                {!emailTestResult.ok && (
+                  <p className="text-xs text-red-700 pl-6">{emailTestResult.message}</p>
+                )}
+                {emailTestResult.hint && (
+                  <p className="text-xs text-red-600 pl-6 font-medium">{emailTestResult.hint}</p>
+                )}
+              </div>
+            )}
+
+            {!emailTestResult && !cfg.host && (
+              <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>No legacy SMTP configured. Make sure you have an account set up in <strong>Settings → Email Accounts</strong> with SMTP enabled, or fill in the SMTP fields above.</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
