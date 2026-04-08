@@ -8,6 +8,7 @@ import dashboardRouter from "./dashboard";
 import emailRouter from "./email";
 import permissionsRouter from "./permissions";
 import settingsRouter from "./settings";
+import automationRulesRouter from "./automationRules";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(dashboardRouter);
 router.use(emailRouter);
 router.use(permissionsRouter);
 router.use(settingsRouter);
+router.use(automationRulesRouter);
 
 export default router;

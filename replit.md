@@ -32,22 +32,40 @@ Full-stack enterprise ticketing SaaS platform for large organizations. Similar t
 ### Frontend (`artifacts/orbitdesk/`)
 - React + Vite SPA at path `/`
 - Auth via localStorage token + Zustand store
-- Pages: Login, Dashboard, Tickets, TicketDetail, CreateTicket, Departments, Users, Settings
+- Pages: Login, Dashboard, Tickets, TicketDetail, CreateTicket, Departments, Users, Settings, Documents, Training, AutomationRules
+- Login page: colorful geometric Bauhaus-style SVG shapes in corners (Dejoiy brand colors)
+- Sidebar: "D" Dejoiy badge on logo, Automation Rules with AUTO badge, Training Centre
 - All API calls via `@workspace/api-client-react` generated hooks
 - Deep Indigo/Navy color palette (enterprise professional)
 
 ### Backend (`artifacts/api-server/`)
 - Express 5 API server at path `/api`
-- Routes: auth, tickets, departments, users, dashboard stats
+- Routes: auth, tickets, departments, users, dashboard stats, email, permissions, settings, automationRules
 - Simple token-based auth (base64url encoded user ID)
 - Password hashing with SHA-256 + salt
+- IMAP polling service applies automation rules to incoming emails
 
 ### Database (`lib/db/`)
-- Tables: users, departments, tickets, ticket_comments, ticket_history
+- Tables: users, departments, tickets, ticket_comments, ticket_history, system_settings, role_permissions, automation_rules
+- `automation_rules`: id, name, description, isActive, triggerType, conditions (JSONB), actions (JSONB), conditionLogic, priority, createdById
 - Enums: role, ticket_status, ticket_priority
 
+### Automation Rules Engine
+- Rules defined in DB, applied at IMAP poll time and on ticket creation
+- Conditions: from_email, to_email, subject, body, tag, department, priority
+- Operators: contains, not_contains, equals, starts_with, ends_with, matches_regex
+- Actions: set_department, set_priority, set_status, assign_agent, add_tag, send_notification, set_raised_for
+- Condition logic: AND / OR
+- Super admin UI at /automation-rules
+
+### Deployment
+- `vercel.json` for Vercel deployment
+- `Dockerfile` for Docker/AWS/Hostinger deployment
+- `DEPLOYMENT.md` with detailed deployment guides for all platforms
+
 ## Demo Credentials
-- **Super Admin (Deepak Sharma)**: admin@dejoiy.com / Jaymaakaali@321
+- **Super Admin (Deepak Sharma)**: deepak.sharma@dejoiy.com / Jaymaakaali@321
+- **Admin**: admin@dejoiy.com / Jaymaakaali@321
 - **Agent (IT)**: alex.c@company.com / password
 - **HR Manager**: fatima.h@company.com / password
 

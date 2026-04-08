@@ -28,6 +28,52 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+function DejoiyGeometricCorner({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const transforms: Record<string, string> = {
+    tl: "translate(0,0)",
+    tr: "translate(100,0) scale(-1,1)",
+    bl: "translate(0,100) scale(1,-1)",
+    br: "translate(100,100) scale(-1,-1)",
+  };
+  return (
+    <svg
+      viewBox="0 0 340 340"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="w-full h-full"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <g transform={transforms[position]}>
+        <rect x="0" y="0" width="80" height="80" fill="#2563EB" />
+        <rect x="80" y="0" width="80" height="80" fill="#EC4899" />
+        <circle cx="40" cy="40" r="40" fill="#F59E0B" />
+        <rect x="0" y="80" width="80" height="80" fill="#06B6D4" />
+        <circle cx="80" cy="80" r="40" fill="#1E3A5F" />
+        <polygon points="80,80 160,80 80,160" fill="#EF4444" />
+        <rect x="160" y="0" width="80" height="80" fill="#06B6D4" opacity="0.8" />
+        <circle cx="200" cy="40" r="40" fill="#2563EB" />
+        <rect x="0" y="160" width="80" height="80" fill="#1E3A5F" />
+        <circle cx="80" cy="200" r="40" fill="#EC4899" />
+        <polygon points="80,160 160,160 80,240" fill="#F59E0B" />
+        <rect x="160" y="80" width="80" height="80" fill="#EF4444" opacity="0.6" />
+        <circle cx="200" cy="120" r="30" fill="#06B6D4" />
+        <rect x="240" y="0" width="80" height="80" fill="#EC4899" opacity="0.7" />
+        <circle cx="280" cy="40" r="20" fill="#1E3A5F" />
+        <rect x="0" y="240" width="80" height="80" fill="#EF4444" />
+        <circle cx="40" cy="280" r="20" fill="#F59E0B" />
+        <polygon points="0,240 80,240 0,320" fill="#2563EB" />
+        <rect x="80" y="240" width="80" height="80" fill="#06B6D4" opacity="0.5" />
+        <circle cx="120" cy="280" r="30" fill="#EC4899" opacity="0.9" />
+        <rect x="160" y="160" width="60" height="60" fill="#1E3A5F" opacity="0.6" />
+        <polygon points="220,160 280,160 280,220" fill="#F59E0B" opacity="0.8" />
+        <circle cx="260" cy="200" r="20" fill="#EF4444" />
+        <rect x="240" y="80" width="40" height="40" fill="#2563EB" opacity="0.9" />
+        <circle cx="300" cy="120" r="15" fill="#EC4899" />
+      </g>
+    </svg>
+  );
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { setAuth } = useAuthStore();
@@ -42,33 +88,20 @@ export default function Login() {
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(
-      { data },
-      {
-        onSuccess: (res) => {
-          setAuth(res.token, res.user);
-          toast({
-            title: "Login successful",
-            description: `Welcome back, ${res.user.name}`,
-          });
-          setLocation("/dashboard");
-        },
-        onError: (err) => {
-          toast({
-            title: "Login failed",
-            description: err.message || "An error occurred",
-            variant: "destructive",
-          });
-        },
-      }
-    );
+    loginMutation.mutate({ data }, {
+      onSuccess: (res) => {
+        setAuth(res.token, res.user);
+        toast({ title: "Login successful", description: `Welcome back, ${res.user.name}` });
+        setLocation("/dashboard");
+      },
+      onError: (err) => {
+        toast({ title: "Login failed", description: err.message || "An error occurred", variant: "destructive" });
+      },
+    });
   };
 
   const handleSSOLogin = async () => {
@@ -79,18 +112,10 @@ export default function Login() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        toast({
-          title: "SSO not configured",
-          description: "Single Sign-On has not been configured for this organisation. Please contact your IT administrator.",
-          variant: "destructive",
-        });
+        toast({ title: "SSO not configured", description: "Single Sign-On has not been configured. Please contact your IT administrator.", variant: "destructive" });
       }
     } catch {
-      toast({
-        title: "SSO unavailable",
-        description: "Could not reach the SSO service. Please use email and password to sign in.",
-        variant: "destructive",
-      });
+      toast({ title: "SSO unavailable", description: "Could not reach the SSO service. Please use email and password.", variant: "destructive" });
     } finally {
       setSsoLoading(false);
     }
@@ -124,24 +149,44 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-      <div className="w-full max-w-[400px]">
-        <div className="flex flex-col items-center mb-8 gap-1">
-          <div className="flex items-center gap-3">
-            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-12 h-12 rounded-xl object-cover shadow-md" />
+    <div className="min-h-screen bg-white flex items-center justify-center relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
+        <DejoiyGeometricCorner position="tl" />
+      </div>
+      <div className="absolute top-0 right-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
+        <DejoiyGeometricCorner position="tr" />
+      </div>
+      <div className="absolute bottom-0 left-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
+        <DejoiyGeometricCorner position="bl" />
+      </div>
+      <div className="absolute bottom-0 right-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
+        <DejoiyGeometricCorner position="br" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-[420px] mx-auto px-4">
+        <div className="flex flex-col items-center mb-8 gap-2">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-200">
+                <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-10 h-10 rounded-xl object-cover" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-[9px] font-black text-white">D</span>
+              </div>
+            </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Dejoiy</span>
-              <span className="font-bold text-2xl tracking-tight text-foreground">OrbitDesk</span>
+              <span className="text-xs font-bold text-blue-600 uppercase tracking-[0.2em]">Dejoiy</span>
+              <span className="font-black text-2xl tracking-tight text-gray-900">OrbitDesk</span>
             </div>
           </div>
-          <span className="text-xs text-muted-foreground mt-1">Enterprise Ticketing System</span>
+          <span className="text-sm text-gray-500 font-medium">Enterprise Ticketing System</span>
         </div>
 
-        <Card className="shadow-lg border-border">
-          <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl font-bold tracking-tight">Sign in</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Enter your credentials to access your workspace
+        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+          <CardHeader className="space-y-1 text-center pb-4">
+            <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">Welcome back</CardTitle>
+            <CardDescription className="text-gray-500">
+              Sign in to access your workspace
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -152,9 +197,15 @@ export default function Login() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel className="text-gray-700 font-medium">Email address</FormLabel>
                       <FormControl>
-                        <Input placeholder="name@example.com" type="email" autoComplete="email" {...field} />
+                        <Input
+                          placeholder="name@company.com"
+                          type="email"
+                          autoComplete="email"
+                          className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -166,10 +217,10 @@ export default function Login() {
                   render={({ field }) => (
                     <FormItem>
                       <div className="flex items-center justify-between">
-                        <FormLabel>Password</FormLabel>
+                        <FormLabel className="text-gray-700 font-medium">Password</FormLabel>
                         <button
                           type="button"
-                          className="text-sm font-medium text-primary hover:underline"
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
                           tabIndex={-1}
                           onClick={() => { setForgotOpen(true); setForgotEmail(form.getValues("email") || ""); }}
                         >
@@ -177,7 +228,13 @@ export default function Login() {
                         </button>
                       </div>
                       <FormControl>
-                        <Input placeholder="••••••••" type="password" autoComplete="current-password" {...field} />
+                        <Input
+                          placeholder="••••••••"
+                          type="password"
+                          autoComplete="current-password"
+                          className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -185,12 +242,10 @@ export default function Login() {
                 />
                 <Button
                   type="submit"
-                  className="w-full mt-2"
+                  className="w-full h-11 mt-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold shadow-md shadow-blue-200 transition-all"
                   disabled={loginMutation.isPending}
                 >
-                  {loginMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
+                  {loginMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Sign In
                 </Button>
               </form>
@@ -198,48 +253,45 @@ export default function Login() {
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
+                <span className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
+                <span className="bg-white px-2 text-gray-400 font-medium">or continue with</span>
               </div>
             </div>
 
             <Button
               type="button"
               variant="outline"
-              className="w-full gap-2"
+              className="w-full h-11 gap-2 border-gray-200 hover:bg-gray-50 text-gray-700 font-medium"
               onClick={handleSSOLogin}
               disabled={ssoLoading}
             >
-              {ssoLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Shield className="h-4 w-4" />
-              )}
+              {ssoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4 text-blue-600" />}
               Sign in with SSO
             </Button>
           </CardContent>
         </Card>
 
-        <div className="mt-8 flex flex-col items-center gap-1">
-          <div className="flex items-center gap-1.5">
-            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-4 h-4 rounded object-cover" />
-            <span className="text-sm font-semibold text-foreground tracking-wide">Dejoiy</span>
+        <div className="mt-6 flex flex-col items-center gap-1">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-gradient-to-br from-blue-600 to-blue-800 rounded-md flex items-center justify-center">
+              <span className="text-[10px] font-black text-white">D</span>
+            </div>
+            <span className="text-sm font-bold text-gray-800 tracking-wide">Dejoiy</span>
           </div>
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-xs text-gray-400">
             &copy; {new Date().getFullYear()} Dejoiy. All rights reserved.
           </p>
         </div>
       </div>
 
-      {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onOpenChange={(v) => { if (!v) handleForgotClose(); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Forgot Password?</DialogTitle>
             <DialogDescription>
-              Enter your registered email address. A password reset ticket will be automatically raised with the IT team — they will contact you to verify your identity and reset your password.
+              Enter your registered email. A password reset ticket will be raised with IT — they will contact you to verify identity and reset your password.
             </DialogDescription>
           </DialogHeader>
 

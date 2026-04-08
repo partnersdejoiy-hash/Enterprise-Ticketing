@@ -13,6 +13,8 @@ import {
   FileText,
   X,
   ChevronRight,
+  BookOpen,
+  Zap,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,8 @@ const allNavItems = [
   { name: "Document Requests", href: "/documents", icon: FileText, roles: null },
   { name: "Departments", href: "/departments", icon: Building2, roles: ["super_admin", "admin", "manager", "agent", "it"] },
   { name: "Users", href: "/users", icon: Users, roles: ["super_admin", "admin"] },
+  { name: "Automation Rules", href: "/automation-rules", icon: Zap, roles: ["super_admin", "admin"] },
+  { name: "Training Centre", href: "/training", icon: BookOpen, roles: null },
   { name: "Settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },
 ];
 
@@ -102,9 +106,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <>
       <div className="h-14 flex items-center px-4 border-b border-sidebar-border flex-shrink-0">
         <div className="flex items-center gap-2.5 flex-1">
-          <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-8 h-8 rounded-lg object-cover shadow-sm flex-shrink-0" />
+          <div className="relative flex-shrink-0">
+            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full flex items-center justify-center border border-sidebar">
+              <span className="text-[8px] font-black text-white leading-none">D</span>
+            </div>
+          </div>
           <div className="flex flex-col leading-none">
-            <span className="text-[9px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest">Dejoiy</span>
+            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Dejoiy</span>
             <span className="font-bold text-sm text-sidebar-foreground tracking-tight">OrbitDesk</span>
           </div>
         </div>
@@ -119,6 +128,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.startsWith(item.href);
+          const isZap = item.href === "/automation-rules";
           return (
             <Link
               key={item.href}
@@ -129,8 +139,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               }`}
             >
-              <item.icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-sidebar-primary" : ""}`} />
+              <item.icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-sidebar-primary" : ""} ${isZap && !isActive ? "text-orange-400" : ""}`} />
               <span className="flex-1 text-sm">{item.name}</span>
+              {isZap && !isActive && <span className="text-[9px] font-bold text-orange-400 bg-orange-400/10 px-1.5 py-0.5 rounded-full">AUTO</span>}
               {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-40" />}
             </Link>
           );
@@ -161,8 +172,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-sidebar-foreground/40">Powered by</span>
             <div className="flex items-center gap-1">
-              <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-3.5 h-3.5 rounded object-cover" />
-              <span className="text-[11px] font-semibold text-sidebar-foreground/70 tracking-wide">Dejoiy</span>
+              <div className="w-4 h-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded flex items-center justify-center">
+                <span className="text-[8px] font-black text-white leading-none">D</span>
+              </div>
+              <span className="text-[11px] font-bold text-sidebar-foreground/70 tracking-wide">Dejoiy</span>
             </div>
           </div>
           <span className="text-[9px] text-sidebar-foreground/30">&copy; {new Date().getFullYear()} Dejoiy. All rights reserved.</span>

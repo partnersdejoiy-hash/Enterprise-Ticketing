@@ -1,7 +1,16 @@
 {
+  "version": 2,
   "functions": {
     "artifacts/api-server/api/**/*.ts": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs20.x"
     }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/artifacts/api-server/api/index.ts" }
+  ],
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "artifacts/orbitdesk/dist",
+  "env": {
+    "NODE_ENV": "production"
   }
 }

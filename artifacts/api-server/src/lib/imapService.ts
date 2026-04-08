@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
-import { db, systemSettingsTable, ticketsTable, usersTable, departmentsTable, eq, and } from "@workspace/db";
+import { db, systemSettingsTable, ticketsTable, usersTable, departmentsTable, automationRulesTable, eq, and } from "@workspace/db";
+import type { AutomationCondition, AutomationAction } from "@workspace/db";
 
 export interface ImapConfig {
   enabled: boolean;
@@ -108,6 +109,105 @@ function extractBody(source: string): string {
   return "";
 }
 
+function matchesCondition(cond: AutomationCondition, ctx: Record<string, string>): boolean {
+  const fieldVal = (ctx[cond.field] ?? "").toLowerCase();
+  const val = cond.value.toLowerCase();
+  switch (cond.operator) {
+    case "contains": return fieldVal.includes(val);
+    case "not_contains": return !fieldVal.includes(val);
+    case "equals": return fieldVal === val;
+    case "not_equals": return fieldVal !== val;
+    case "starts_with": return fieldVal.startsWith(val);
+    case "ends_with": return fieldVal.endsWith(val);
+    case "matches_regex": try { return new RegExp(cond.value, "i").test(ctx[cond.field] ?? ""); } catch { return false; }
+    default: return false;
+  }
+}
+
+type TicketPatch = {
+  departmentId?: number | null;
+  priority?: string;
+  status?: string;
+  assignedToId?: number | null;
+  tags?: string[];
+  raisedForEmail?: string;
+};
+
+async function applyAutomationRules(emailCtx: {
+  from_email: string;
+  to_email: string;
+  subject: string;
+  body: string;
+}, current: TicketPatch): Promise<TicketPatch> {
+  try {
+    const rules = await db
+      .select()
+      .from(automationRulesTable)
+      .where(eq(automationRulesTable.isActive, true))
+      .orderBy(automationRulesTable.priority, automationRulesTable.id);
+
+    const emailRules = rules.filter(r => r.triggerType === "email_received");
+    const patch: TicketPatch = { ...current };
+
+    for (const rule of emailRules) {
+      const conditions = (rule.conditions ?? []) as AutomationCondition[];
+      const actions = (rule.actions ?? []) as AutomationAction[];
+      const logic = rule.conditionLogic ?? "AND";
+
+      const results = conditions.map(c => matchesCondition(c, emailCtx as Record<string, string>));
+      const matched = logic === "OR" ? results.some(Boolean) : results.every(Boolean);
+
+      if (!matched) continue;
+
+      console.error(`[automation] Rule "${rule.name}" matched for email from ${emailCtx.from_email}`);
+
+      for (const action of actions) {
+        switch (action.type) {
+          case "set_department": {
+            const depts = await db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable);
+            const dept = depts.find(d => d.name.toLowerCase() === action.value.toLowerCase());
+            if (dept) patch.departmentId = dept.id;
+            break;
+          }
+          case "set_priority": {
+            const validPriorities = ["low", "medium", "high", "urgent"];
+            if (validPriorities.includes(action.value.toLowerCase())) {
+              patch.priority = action.value.toLowerCase();
+            }
+            break;
+          }
+          case "set_status": {
+            const validStatuses = ["open", "assigned", "in_progress", "waiting", "resolved", "closed"];
+            if (validStatuses.includes(action.value.toLowerCase())) {
+              patch.status = action.value.toLowerCase();
+            }
+            break;
+          }
+          case "assign_agent": {
+            const [agent] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, action.value)).limit(1);
+            if (agent) patch.assignedToId = agent.id;
+            break;
+          }
+          case "add_tag": {
+            if (!patch.tags) patch.tags = [];
+            if (!patch.tags.includes(action.value)) patch.tags.push(action.value);
+            break;
+          }
+          case "set_raised_for": {
+            const resolvedVal = action.value.includes("{from_email}") ? action.value.replace("{from_email}", emailCtx.from_email) : action.value;
+            patch.raisedForEmail = resolvedVal;
+            break;
+          }
+        }
+      }
+    }
+    return patch;
+  } catch (err) {
+    console.error("[automation] Error applying rules:", err);
+    return current;
+  }
+}
+
 function genTicketNum(): string {
   return `TKT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
 }
@@ -179,20 +279,34 @@ async function pollOnce(): Promise<void> {
             continue;
           }
 
-          const departmentId = await autoRouteDept(subject, description);
+          const keywordDeptId = await autoRouteDept(subject, description);
+          const toEmail = cfg.user || "";
+          const emailCtx = { from_email: fromEmail, to_email: toEmail, subject, body: description };
+          const initialPatch: TicketPatch = {
+            departmentId: keywordDeptId ?? null,
+            priority: "medium",
+            tags: ["email-generated"],
+          };
+          const patch = await applyAutomationRules(emailCtx, initialPatch);
+
+          const finalDeptId = patch.departmentId ?? null;
           let slaDeadline: Date | null = null;
-          if (departmentId) {
-            const [dept] = await db.select({ slaResolutionHours: departmentsTable.slaResolutionHours }).from(departmentsTable).where(eq(departmentsTable.id, departmentId)).limit(1);
+          if (finalDeptId) {
+            const [dept] = await db.select({ slaResolutionHours: departmentsTable.slaResolutionHours }).from(departmentsTable).where(eq(departmentsTable.id, finalDeptId)).limit(1);
             if (dept) slaDeadline = new Date(Date.now() + dept.slaResolutionHours * 3600 * 1000);
           }
 
           await db.insert(ticketsTable).values({
             ticketNumber: genTicketNum(), subject, description,
-            status: "open", priority: "medium",
-            departmentId: departmentId ?? null,
+            status: (patch.status as any) ?? "open",
+            priority: (patch.priority as any) ?? "medium",
+            departmentId: finalDeptId,
             createdById: creatorId,
-            raisedForName: fromName, raisedForEmail: fromEmail,
-            tags: ["email-generated"], slaDeadline,
+            assignedToId: patch.assignedToId ?? null,
+            raisedForName: fromName,
+            raisedForEmail: patch.raisedForEmail ?? fromEmail,
+            tags: patch.tags ?? ["email-generated"],
+            slaDeadline,
           } as any);
 
           await client.messageFlagsAdd(msg.seq, ["\\Seen"]);

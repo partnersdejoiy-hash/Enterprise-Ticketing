@@ -14,6 +14,8 @@ import Departments from "@/pages/Departments";
 import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
 import Documents from "@/pages/Documents";
+import Training from "@/pages/Training";
+import AutomationRules from "@/pages/AutomationRules";
 import { useAuthStore } from "@/lib/auth";
 
 setAuthTokenGetter(() => {
@@ -71,6 +73,12 @@ function Router() {
       </Route>
       <Route path="/documents">
         <AuthGuard><Documents /></AuthGuard>
+      </Route>
+      <Route path="/training">
+        <AuthGuard><Training /></AuthGuard>
+      </Route>
+      <Route path="/automation-rules">
+        <AuthGuard><AutomationRules /></AuthGuard>
       </Route>
       <Route component={NotFound} />
     </Switch>
