@@ -120,16 +120,39 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
     const createdById = req.user!.id;
     const ticketNumber = generateTicketNumber();
 
-    // Auto-route to department based on tags if no department was specified
-    if (!departmentId && Array.isArray(tags) && tags.length > 0) {
+    // Auto-route to department based on tags and subject keywords if no department was specified
+    if (!departmentId) {
       const allDepts = await db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable);
-      if (tags.includes("password-reset")) {
-        const itDept = allDepts.find(d => /\bit\b|it support|information.?tech/i.test(d.name));
-        if (itDept) departmentId = itDept.id;
-      } else if (tags.includes("wfh-request") || tags.includes("document-request")) {
-        const hrDept = allDepts.find(d => /hr|human.?resource/i.test(d.name));
-        if (hrDept) departmentId = hrDept.id;
-      }
+      const tagList: string[] = Array.isArray(tags) ? tags : [];
+      const text = `${subject} ${description}`.toLowerCase();
+
+      const itDept   = allDepts.find(d => /\bit\b|it support|information.?tech/i.test(d.name));
+      const hrDept   = allDepts.find(d => /hr|human.?resource/i.test(d.name));
+      const finDept  = allDepts.find(d => /financ|accounts/i.test(d.name));
+      const legalDept= allDepts.find(d => /legal/i.test(d.name));
+      const adminDept= allDepts.find(d => /\badmin\b/i.test(d.name));
+      const bgvDept  = allDepts.find(d => /bgv|background.?verif/i.test(d.name));
+      const opsDept  = allDepts.find(d => /operat/i.test(d.name));
+      const csDept   = allDepts.find(d => /customer.?support|support.?team/i.test(d.name));
+
+      let resolved: typeof itDept | undefined;
+
+      // 1. Tag-based routing (highest priority)
+      if (tagList.includes("password-reset"))                           resolved = itDept;
+      else if (tagList.includes("wfh-request"))                        resolved = hrDept;
+      else if (tagList.includes("document-request"))                   resolved = hrDept;
+      else if (tagList.includes("bgv-request"))                        resolved = bgvDept;
+      // 2. Subject/description keyword routing
+      else if (/password|reset.*password|cannot.*login|account.*lock|vpn|laptop|computer|printer|software|hardware|network|wifi|wi-fi|it support|email.*setup|email.*access|system.*error|access.*denied|two.?factor|2fa|antivirus|malware|virus/.test(text)) resolved = itDept;
+      else if (/wfh|work.?from.?home|work from home|leave|salary|payroll|attendance|appraisal|performance.?review|joining|onboarding|resignation|offer.?letter|increment|promotion|transfer|pf\b|epf|esic|health.?insurance|id.?card|employee.?id|document.?request/.test(text)) resolved = hrDept;
+      else if (/bgv|background.?check|background.?verif|reference.?check/.test(text)) resolved = bgvDept;
+      else if (/invoic|payment|reimburs|expense|budget|finance|tax|audit|accounts|petty.?cash|purchase.?order|vendor.?payment/.test(text)) resolved = finDept;
+      else if (/legal|contract|nda|compliance|agreement|clause|policy.?review|litigation/.test(text)) resolved = legalDept;
+      else if (/admin|office.?supply|stationary|stationery|pantry|housekeep|facility|parking|cab|transport|travel.?request|hotel.?booking|flight/.test(text)) resolved = adminDept;
+      else if (/customer|client.?issue|client.?complaint|customer.?complaint|refund|escalation/.test(text)) resolved = csDept;
+      else if (/operation|ops\b|process|workflow|sop|procedure/.test(text)) resolved = opsDept;
+
+      if (resolved) departmentId = resolved.id;
     }
 
     let slaDeadline: Date | null = null;
