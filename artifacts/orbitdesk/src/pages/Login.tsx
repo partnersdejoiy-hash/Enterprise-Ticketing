@@ -28,48 +28,70 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-function DejoiyGeometricCorner({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
-  const transforms: Record<string, string> = {
-    tl: "translate(0,0)",
-    tr: "translate(100,0) scale(-1,1)",
-    bl: "translate(0,100) scale(1,-1)",
-    br: "translate(100,100) scale(-1,-1)",
-  };
+function BauhausBackground() {
   return (
     <svg
-      viewBox="0 0 340 340"
-      fill="none"
+      aria-hidden="true"
+      className="fixed inset-0 w-full h-full pointer-events-none"
       xmlns="http://www.w3.org/2000/svg"
-      className="w-full h-full"
       preserveAspectRatio="xMidYMid slice"
     >
-      <g transform={transforms[position]}>
-        <rect x="0" y="0" width="80" height="80" fill="#2563EB" />
-        <rect x="80" y="0" width="80" height="80" fill="#EC4899" />
-        <circle cx="40" cy="40" r="40" fill="#F59E0B" />
-        <rect x="0" y="80" width="80" height="80" fill="#06B6D4" />
-        <circle cx="80" cy="80" r="40" fill="#1E3A5F" />
-        <polygon points="80,80 160,80 80,160" fill="#EF4444" />
-        <rect x="160" y="0" width="80" height="80" fill="#06B6D4" opacity="0.8" />
-        <circle cx="200" cy="40" r="40" fill="#2563EB" />
-        <rect x="0" y="160" width="80" height="80" fill="#1E3A5F" />
-        <circle cx="80" cy="200" r="40" fill="#EC4899" />
-        <polygon points="80,160 160,160 80,240" fill="#F59E0B" />
-        <rect x="160" y="80" width="80" height="80" fill="#EF4444" opacity="0.6" />
-        <circle cx="200" cy="120" r="30" fill="#06B6D4" />
-        <rect x="240" y="0" width="80" height="80" fill="#EC4899" opacity="0.7" />
-        <circle cx="280" cy="40" r="20" fill="#1E3A5F" />
-        <rect x="0" y="240" width="80" height="80" fill="#EF4444" />
-        <circle cx="40" cy="280" r="20" fill="#F59E0B" />
-        <polygon points="0,240 80,240 0,320" fill="#2563EB" />
-        <rect x="80" y="240" width="80" height="80" fill="#06B6D4" opacity="0.5" />
-        <circle cx="120" cy="280" r="30" fill="#EC4899" opacity="0.9" />
-        <rect x="160" y="160" width="60" height="60" fill="#1E3A5F" opacity="0.6" />
-        <polygon points="220,160 280,160 280,220" fill="#F59E0B" opacity="0.8" />
-        <circle cx="260" cy="200" r="20" fill="#EF4444" />
-        <rect x="240" y="80" width="40" height="40" fill="#2563EB" opacity="0.9" />
-        <circle cx="300" cy="120" r="15" fill="#EC4899" />
-      </g>
+      <defs>
+        <pattern id="bauhaus-tile" x="0" y="0" width="320" height="320" patternUnits="userSpaceOnUse">
+          {/* Row 1 */}
+          <rect x="0"   y="0"   width="80" height="80" fill="#2563EB" />
+          <circle cx="40"  cy="40"  r="40" fill="#F59E0B" />
+
+          <rect x="80"  y="0"   width="80" height="80" fill="#EC4899" />
+          <circle cx="120" cy="40"  r="28" fill="#1E3A5F" />
+
+          <rect x="160" y="0"   width="80" height="80" fill="#06B6D4" />
+          <polygon points="160,0 240,0 160,80" fill="#EF4444" />
+
+          <rect x="240" y="0"   width="80" height="80" fill="#F59E0B" />
+          <circle cx="280" cy="40"  r="40" fill="#2563EB" />
+
+          {/* Row 2 */}
+          <rect x="0"   y="80"  width="80" height="80" fill="#1E3A5F" />
+          <path d="M0,80 Q40,80 40,120 Q40,160 0,160 Z" fill="#EC4899" />
+
+          <rect x="80"  y="80"  width="80" height="80" fill="#EF4444" />
+          <circle cx="120" cy="120" r="40" fill="#06B6D4" />
+
+          <rect x="160" y="80"  width="80" height="80" fill="#2563EB" />
+          <polygon points="160,160 240,80 240,160" fill="#F59E0B" />
+
+          <rect x="240" y="80"  width="80" height="80" fill="#1E3A5F" />
+          <circle cx="280" cy="120" r="24" fill="#EC4899" />
+
+          {/* Row 3 */}
+          <rect x="0"   y="160" width="80" height="80" fill="#F59E0B" />
+          <circle cx="40"  cy="200" r="40" fill="#2563EB" />
+
+          <rect x="80"  y="160" width="80" height="80" fill="#06B6D4" />
+          <path d="M80,160 Q120,160 120,200 Q120,240 80,240 Z" fill="#1E3A5F" />
+
+          <rect x="160" y="160" width="80" height="80" fill="#EC4899" />
+          <circle cx="200" cy="200" r="26" fill="#F59E0B" />
+
+          <rect x="240" y="160" width="80" height="80" fill="#2563EB" />
+          <polygon points="240,160 320,160 240,240" fill="#06B6D4" />
+
+          {/* Row 4 */}
+          <rect x="0"   y="240" width="80" height="80" fill="#EF4444" />
+          <polygon points="0,240 80,240 80,320" fill="#2563EB" />
+
+          <rect x="80"  y="240" width="80" height="80" fill="#1E3A5F" />
+          <circle cx="120" cy="280" r="40" fill="#06B6D4" />
+
+          <rect x="160" y="240" width="80" height="80" fill="#F59E0B" />
+          <path d="M160,240 Q200,240 200,280 Q200,320 160,320 Z" fill="#EC4899" />
+
+          <rect x="240" y="240" width="80" height="80" fill="#06B6D4" />
+          <circle cx="280" cy="280" r="32" fill="#EF4444" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#bauhaus-tile)" />
     </svg>
   );
 }
@@ -149,40 +171,29 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
-        <DejoiyGeometricCorner position="tl" />
-      </div>
-      <div className="absolute top-0 right-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
-        <DejoiyGeometricCorner position="tr" />
-      </div>
-      <div className="absolute bottom-0 left-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
-        <DejoiyGeometricCorner position="bl" />
-      </div>
-      <div className="absolute bottom-0 right-0 w-72 h-72 md:w-96 md:h-96 pointer-events-none">
-        <DejoiyGeometricCorner position="br" />
-      </div>
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      <BauhausBackground />
 
-      <div className="relative z-10 w-full max-w-[420px] mx-auto px-4">
-        <div className="flex flex-col items-center mb-8 gap-2">
+      <div className="relative z-10 w-full max-w-[440px] mx-auto px-4 py-8">
+        <div className="flex flex-col items-center mb-6 gap-2">
           <div className="flex items-center gap-3 mb-1">
             <div className="relative">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-200">
+              <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-xl ring-2 ring-white/60">
                 <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-10 h-10 rounded-xl object-cover" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center shadow">
                 <span className="text-[9px] font-black text-white">D</span>
               </div>
             </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-[0.2em]">Dejoiy</span>
-              <span className="font-black text-2xl tracking-tight text-gray-900">OrbitDesk</span>
+            <div className="flex flex-col leading-tight drop-shadow-lg">
+              <span className="text-xs font-bold text-white uppercase tracking-[0.2em] [text-shadow:0_1px_4px_rgba(0,0,0,0.4)]">Dejoiy</span>
+              <span className="font-black text-2xl tracking-tight text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.3)]">OrbitDesk</span>
             </div>
           </div>
-          <span className="text-sm text-gray-500 font-medium">Enterprise Ticketing System</span>
+          <span className="text-sm text-white/90 font-semibold tracking-wide [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">Enterprise Ticketing System</span>
         </div>
 
-        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+        <Card className="shadow-2xl border-0 bg-white/97 backdrop-blur-md">
           <CardHeader className="space-y-1 text-center pb-4">
             <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">Welcome back</CardTitle>
             <CardDescription className="text-gray-500">
@@ -273,14 +284,14 @@ export default function Login() {
           </CardContent>
         </Card>
 
-        <div className="mt-6 flex flex-col items-center gap-1">
+        <div className="mt-5 flex flex-col items-center gap-1">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-gradient-to-br from-blue-600 to-blue-800 rounded-md flex items-center justify-center">
-              <span className="text-[10px] font-black text-white">D</span>
+            <div className="w-5 h-5 bg-white rounded-md flex items-center justify-center shadow">
+              <span className="text-[10px] font-black text-blue-700">D</span>
             </div>
-            <span className="text-sm font-bold text-gray-800 tracking-wide">Dejoiy</span>
+            <span className="text-sm font-bold text-white tracking-wide [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">Dejoiy</span>
           </div>
-          <p className="text-center text-xs text-gray-400">
+          <p className="text-center text-xs text-white/70">
             &copy; {new Date().getFullYear()} Dejoiy. All rights reserved.
           </p>
         </div>
