@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, ticketsTable, departmentsTable, usersTable, ticketHistoryTable, eq, asc } from "@workspace/db";
 import { sendEmail } from "../lib/emailService.js";
+import { autoAssignForDepartment } from "../lib/autoAssign.js";
 
 const router = Router();
 
@@ -75,14 +76,20 @@ router.post("/public/request", async (req, res) => {
       message,
     ].filter(v => v !== undefined && v !== null && v !== "").join("\n");
 
+    // Auto-assign to the department member with the fewest open tickets
+    let autoAssigneeId: number | null = null;
+    if (resolvedDeptId) {
+      autoAssigneeId = await autoAssignForDepartment(resolvedDeptId);
+    }
+
     const [ticket] = await db.insert(ticketsTable).values({
       ticketNumber,
       subject: subject.trim(),
       description,
       priority: "medium" as const,
-      status: "open" as const,
+      status: autoAssigneeId ? "assigned" : "open",
       departmentId: resolvedDeptId,
-      assigneeId: null,
+      assigneeId: autoAssigneeId,
       createdById,
       raisedForName: name.trim(),
       raisedForEmail: email.trim().toLowerCase(),

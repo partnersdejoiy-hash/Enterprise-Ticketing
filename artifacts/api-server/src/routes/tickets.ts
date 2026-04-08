@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, ticketsTable, usersTable, departmentsTable, commentsTable, ticketHistoryTable, rolePermissionsTable, eq, and, sql, ilike, inArray } from "@workspace/db";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 import { sendTicketCreatedEmail, sendTicketStatusEmail, sendDocumentRequestEmail } from "../lib/emailService";
+import { autoAssignForDepartment } from "../lib/autoAssign";
 
 const router = Router();
 
@@ -183,18 +184,26 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       if (dept) { slaDeadline = new Date(Date.now() + dept.slaResolutionHours * 3600 * 1000); deptName = dept.name; }
     }
 
-    const status = assigneeId ? "assigned" : "open";
+    // Auto-assign to the department member with the fewest open tickets (round-robin by workload)
+    let resolvedAssigneeId: number | null = assigneeId ?? null;
+    if (!resolvedAssigneeId && departmentId) {
+      resolvedAssigneeId = await autoAssignForDepartment(departmentId);
+    }
+
+    const status = resolvedAssigneeId ? "assigned" : "open";
 
     const [ticket] = await db
       .insert(ticketsTable)
-      .values({ ticketNumber, subject, description, priority, status, departmentId: departmentId ?? null, assigneeId: assigneeId ?? null, createdById, tags, slaDeadline, raisedForName: raisedForName ?? null, raisedForEmail: raisedForEmail ?? null } as any)
+      .values({ ticketNumber, subject, description, priority, status, departmentId: departmentId ?? null, assigneeId: resolvedAssigneeId, createdById, tags, slaDeadline, raisedForName: raisedForName ?? null, raisedForEmail: raisedForEmail ?? null } as any)
       .returning();
 
-    await db.insert(ticketHistoryTable).values({ ticketId: ticket.id, action: "created", newValue: "open", changedById: createdById });
+    await db.insert(ticketHistoryTable).values({ ticketId: ticket.id, action: "created", newValue: status, changedById: createdById });
 
     const usersMap = new Map<number, string>();
-    const [creator] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable).where(eq(usersTable.id, createdById)).limit(1);
-    if (creator) usersMap.set(creator.id, creator.name);
+    const userIdsToFetch = [...new Set([createdById, resolvedAssigneeId].filter(Boolean) as number[])];
+    const fetchedUsers = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable).where(inArray(usersTable.id, userIdsToFetch));
+    for (const u of fetchedUsers) usersMap.set(u.id, u.name);
+    const creator = fetchedUsers.find(u => u.id === createdById);
 
     const deptsMap = new Map<number, string>();
     if (departmentId && deptName) deptsMap.set(departmentId, deptName);
