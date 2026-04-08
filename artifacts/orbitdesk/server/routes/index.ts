@@ -8,10 +8,12 @@ import dashboardRouter from "./dashboard.js";
 import emailRouter from "./email.js";
 import permissionsRouter from "./permissions.js";
 import settingsRouter from "./settings.js";
+import publicRequestRouter from "./publicRequest.js";
 
 const router = Router();
 
 router.use(healthRouter);
+router.use(publicRequestRouter);
 router.use(authRouter);
 router.use(usersRouter);
 router.use(ticketsRouter);

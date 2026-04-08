@@ -9,6 +9,7 @@ import emailRouter from "./email";
 import permissionsRouter from "./permissions";
 import settingsRouter from "./settings";
 import automationRulesRouter from "./automationRules";
+import publicRequestRouter from "./publicRequest";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(emailRouter);
 router.use(permissionsRouter);
 router.use(settingsRouter);
 router.use(automationRulesRouter);
+router.use(publicRequestRouter);
 
 export default router;

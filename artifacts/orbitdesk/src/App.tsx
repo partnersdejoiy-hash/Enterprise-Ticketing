@@ -16,6 +16,9 @@ import Settings from "@/pages/Settings";
 import Documents from "@/pages/Documents";
 import Training from "@/pages/Training";
 import AutomationRules from "@/pages/AutomationRules";
+import EmploymentVerification from "@/pages/EmploymentVerification";
+import BackgroundVerification from "@/pages/BackgroundVerification";
+import PublicRequest from "@/pages/PublicRequest";
 import { useAuthStore } from "@/lib/auth";
 
 setAuthTokenGetter(() => {
@@ -80,6 +83,13 @@ function Router() {
       <Route path="/automation-rules">
         <AuthGuard><AutomationRules /></AuthGuard>
       </Route>
+      <Route path="/employment-verification">
+        <AuthGuard><EmploymentVerification /></AuthGuard>
+      </Route>
+      <Route path="/background-verification">
+        <AuthGuard><BackgroundVerification /></AuthGuard>
+      </Route>
+      <Route path="/request" component={PublicRequest} />
       <Route component={NotFound} />
     </Switch>
   );

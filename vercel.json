@@ -1,15 +1,17 @@
 {
   "version": 2,
+  "buildCommand": "pnpm install && cd lib/db && npx tsc -p tsconfig.json && cd ../.. && pnpm --filter @workspace/orbitdesk run build",
+  "outputDirectory": "artifacts/orbitdesk/dist",
   "functions": {
-    "artifacts/api-server/api/**/*.ts": {
-      "runtime": "nodejs20.x"
+    "api/index.ts": {
+      "runtime": "@vercel/node@3",
+      "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/artifacts/api-server/api/index.ts" }
+    { "source": "/api/:path*", "destination": "/api/index.ts" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "artifacts/orbitdesk/dist",
   "env": {
     "NODE_ENV": "production"
   }

@@ -19,6 +19,8 @@ import {
   Pencil,
   Loader2,
   UserCircle,
+  Briefcase,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -42,6 +44,8 @@ const allNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: null },
   { name: "Tickets", href: "/tickets", icon: Ticket, roles: null },
   { name: "Document Requests", href: "/documents", icon: FileText, roles: null },
+  { name: "Employment Verification", href: "/employment-verification", icon: Briefcase, roles: ["super_admin", "admin", "manager", "agent"] },
+  { name: "Background Verification", href: "/background-verification", icon: ShieldCheck, roles: ["super_admin", "admin", "manager", "agent"] },
   { name: "Departments", href: "/departments", icon: Building2, roles: ["super_admin", "admin", "manager", "agent", "it"] },
   { name: "Users", href: "/users", icon: Users, roles: ["super_admin", "admin"] },
   { name: "Automation Rules", href: "/automation-rules", icon: Zap, roles: ["super_admin", "admin"] },
