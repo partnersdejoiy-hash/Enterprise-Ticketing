@@ -110,7 +110,7 @@ router.get("/users/lookup", authMiddleware, async (req, res) => {
 
 router.get("/users/:userId", authMiddleware, async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10);
+    const userId = parseInt(req.params.userId as string, 10);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
 
     if (!user) {
@@ -167,7 +167,7 @@ router.patch("/users/bulk-role", authMiddleware, async (req: AuthenticatedReques
 router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const callerRole = req.user!.role;
-    const userId = parseInt(req.params.userId, 10);
+    const userId = parseInt(req.params.userId as string, 10);
     const { name, role, departmentId, isActive, employeeId, newPassword } = req.body;
 
     if (role !== undefined) {
@@ -228,7 +228,7 @@ router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest,
 
 router.delete("/users/:userId", authMiddleware, async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10);
+    const userId = parseInt(req.params.userId as string, 10);
     const deleted = await db.delete(usersTable).where(eq(usersTable.id, userId)).returning();
     if (!deleted.length) { res.status(404).json({ error: "Not Found" }); return; }
     res.status(204).end();

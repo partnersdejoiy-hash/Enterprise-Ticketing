@@ -75,7 +75,7 @@ router.post("/departments", authMiddleware, async (req, res) => {
 
 router.get("/departments/:departmentId", authMiddleware, async (req, res) => {
   try {
-    const deptId = parseInt(req.params.departmentId, 10);
+    const deptId = parseInt(req.params.departmentId as string, 10);
     const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, deptId)).limit(1);
 
     if (!dept) {
@@ -155,7 +155,7 @@ router.delete("/departments/:departmentId", authMiddleware, async (req: Authenti
       res.status(403).json({ error: "Forbidden", message: "Only Super Admins and Admins can delete departments" });
       return;
     }
-    const deptId = parseInt(req.params.departmentId, 10);
+    const deptId = parseInt(req.params.departmentId as string, 10);
     await db.update(ticketsTable).set({ departmentId: null }).where(eq(ticketsTable.departmentId, deptId));
     await db.update(usersTable).set({ departmentId: null }).where(eq(usersTable.departmentId, deptId));
     const deleted = await db.delete(departmentsTable).where(eq(departmentsTable.id, deptId)).returning();

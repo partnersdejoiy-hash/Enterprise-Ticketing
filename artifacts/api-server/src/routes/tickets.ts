@@ -229,7 +229,7 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
 
 router.get("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const ticketId = parseInt(req.params.ticketId, 10);
+    const ticketId = parseInt(req.params.ticketId as string, 10);
     const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, ticketId)).limit(1);
 
     if (!ticket) {
@@ -302,7 +302,7 @@ router.get("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedReques
 
 router.patch("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const ticketId = parseInt(req.params.ticketId, 10);
+    const ticketId = parseInt(req.params.ticketId as string, 10);
     const { subject, description, status, priority, departmentId, assigneeId, tags } = req.body;
 
     const [existing] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, ticketId)).limit(1);
@@ -397,7 +397,7 @@ router.delete("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedReq
       res.status(403).json({ error: "Forbidden", message: "Only Super Admins and Admins can delete tickets" });
       return;
     }
-    const ticketId = parseInt(req.params.ticketId, 10);
+    const ticketId = parseInt(req.params.ticketId as string, 10);
     await db.delete(commentsTable).where(eq(commentsTable.ticketId, ticketId));
     await db.delete(ticketHistoryTable).where(eq(ticketHistoryTable.ticketId, ticketId));
     const deleted = await db.delete(ticketsTable).where(eq(ticketsTable.id, ticketId)).returning();
@@ -411,7 +411,7 @@ router.delete("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedReq
 
 router.get("/tickets/:ticketId/comments", authMiddleware, async (req, res) => {
   try {
-    const ticketId = parseInt(req.params.ticketId, 10);
+    const ticketId = parseInt(req.params.ticketId as string, 10);
     const comments = await db.select().from(commentsTable).where(eq(commentsTable.ticketId, ticketId)).orderBy(commentsTable.createdAt);
 
     const authorIds = [...new Set(comments.map((c) => c.authorId))];
@@ -440,7 +440,7 @@ router.get("/tickets/:ticketId/comments", authMiddleware, async (req, res) => {
 
 router.post("/tickets/:ticketId/comments", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const ticketId = parseInt(req.params.ticketId, 10);
+    const ticketId = parseInt(req.params.ticketId as string, 10);
     const { content, isInternal = false } = req.body;
 
     if (!content) {
