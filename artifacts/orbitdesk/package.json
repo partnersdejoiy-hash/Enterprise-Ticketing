@@ -78,11 +78,13 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@types/nodemailer": "^8.0.0",
     "@workspace/db": "workspace:*",
     "concurrently": "^9.2.1",
     "cors": "^2.8.6",
     "cross-env": "^10.1.0",
     "express": "^5.2.1",
+    "nodemailer": "^8.0.4",
     "tsx": "catalog:",
     "zustand": "^5.0.12"
   }

@@ -17,7 +17,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAllPermissions, type RolePermissions } from "@/hooks/usePermissions";
 import {
   User, Bell, Settings as SettingsIcon, Shield, Mail, Globe,
-  Zap, Copy, CheckCircle2, Loader2, ShieldCheck, Lock, Info
+  Zap, Copy, CheckCircle2, Loader2, ShieldCheck, Lock, Info,
+  Eye, EyeOff, Send, RefreshCw, ToggleLeft, ToggleRight
 } from "lucide-react";
 
 // ─── Role hierarchy ────────────────────────────────────────────────────────────
@@ -221,6 +222,228 @@ function RolePermissionCard({
   );
 }
 
+// ─── Email Config form ─────────────────────────────────────────────────────────
+interface EmailConfig {
+  host: string; port: number; secure: boolean; user: string; pass: string;
+  fromEmail: string; fromName: string; enabled: boolean;
+}
+
+function EmailConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const { toast } = useToast();
+  const [cfg, setCfg] = useState<EmailConfig>({ host: "", port: 587, secure: false, user: "", pass: "", fromEmail: "noreply.notifications@dejoiy.com", fromName: "OrbitDesk by Dejoiy", enabled: false });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    fetch("/api/settings/email", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) { setCfg(data); setTestTo(data.fromEmail || ""); } })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const upd = (k: keyof EmailConfig, v: string | boolean | number) => { setCfg(p => ({ ...p, [k]: v })); setDirty(true); };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/settings/email", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(cfg),
+      });
+      if (!res.ok) throw new Error((await res.json()).message ?? "Save failed");
+      setDirty(false);
+      toast({ title: "Settings saved", description: "Email configuration updated successfully" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const testEmail = async () => {
+    setTesting(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/settings/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ to: testTo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details ?? data.error ?? "Test failed");
+      toast({ title: "Test email sent!", description: data.message });
+    } catch (e: any) {
+      toast({ title: "Test failed", description: e.message, variant: "destructive" });
+    } finally { setTesting(false); }
+  };
+
+  if (loading) return <Card><CardContent className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></CardContent></Card>;
+
+  const isReadonly = !isSuperAdmin;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" /> Outbound Email (SMTP)
+            </CardTitle>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => upd("enabled", !cfg.enabled)}
+                className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full transition-colors ${cfg.enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+              >
+                {cfg.enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                {cfg.enabled ? "Enabled" : "Disabled"}
+              </button>
+            )}
+          </div>
+          {!isSuperAdmin && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+              <Lock className="h-3 w-3" /> Only Super Admins can modify email configuration
+            </p>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {!cfg.enabled && isSuperAdmin && (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-700">Auto-email notifications are currently disabled. Enable above and configure SMTP to send ticket notifications.</p>
+            </div>
+          )}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">SMTP Server</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label>SMTP Host</Label>
+                <Input placeholder="smtp.gmail.com" value={cfg.host} onChange={e => upd("host", e.target.value)} disabled={isReadonly} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Port</Label>
+                <Input type="number" placeholder="587" value={cfg.port} onChange={e => upd("port", parseInt(e.target.value) || 587)} disabled={isReadonly} />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Switch checked={cfg.secure} onCheckedChange={v => upd("secure", v)} disabled={isReadonly} />
+              <Label className="text-sm font-normal cursor-pointer">Use TLS/SSL (port 465)</Label>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Authentication</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>SMTP Username</Label>
+                <Input placeholder="your@email.com" value={cfg.user} onChange={e => upd("user", e.target.value)} disabled={isReadonly} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>SMTP Password</Label>
+                <div className="relative">
+                  <Input type={showPass ? "text" : "password"} placeholder="••••••••" value={cfg.pass} onChange={e => upd("pass", e.target.value)} disabled={isReadonly} className="pr-9" />
+                  <button type="button" className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground" onClick={() => setShowPass(p => !p)}>
+                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Sender Identity</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>From Email</Label>
+                <Input type="email" placeholder="noreply.notifications@dejoiy.com" value={cfg.fromEmail} onChange={e => upd("fromEmail", e.target.value)} disabled={isReadonly} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>From Name</Label>
+                <Input placeholder="OrbitDesk by Dejoiy" value={cfg.fromName} onChange={e => upd("fromName", e.target.value)} disabled={isReadonly} />
+              </div>
+            </div>
+          </div>
+          {isSuperAdmin && (
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => { setCfg(c => ({ ...c })); setDirty(false); }} disabled={saving || !dirty}>
+                Discard
+              </Button>
+              <Button size="sm" onClick={save} disabled={saving || !dirty} className="gap-1.5">
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {saving ? "Saving…" : "Save Settings"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Send className="h-4 w-4 text-blue-500" /> Test Email
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">Send a test email to verify your SMTP configuration is working correctly.</p>
+            <div className="flex gap-2">
+              <Input
+                type="email"
+                placeholder="recipient@example.com"
+                value={testTo}
+                onChange={e => setTestTo(e.target.value)}
+                className="flex-1"
+              />
+              <Button size="sm" variant="outline" onClick={testEmail} disabled={testing || !testTo || !cfg.host} className="gap-1.5 flex-shrink-0">
+                {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {testing ? "Sending…" : "Send Test"}
+              </Button>
+            </div>
+            {!cfg.host && <p className="text-xs text-muted-foreground">Configure SMTP host above before testing.</p>}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bell className="h-4 w-4 text-muted-foreground" /> Notification Triggers
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 text-sm">
+            {[
+              { trigger: "Ticket Created", recipients: "Submitter + CC'd (raised for)", desc: "Sent when a new ticket is opened" },
+              { trigger: "Ticket Resolved", recipients: "Submitter + CC'd (raised for)", desc: "Sent when status changes to Resolved" },
+              { trigger: "Ticket Closed", recipients: "Submitter + CC'd (raised for)", desc: "Sent when status changes to Closed" },
+              { trigger: "Status Changed", recipients: "Submitter + CC'd", desc: "Sent on any status change" },
+              { trigger: "Document Request Created", recipients: "Requester", desc: "Sent when a document request ticket opens" },
+              { trigger: "Document Request Updated", recipients: "Requester", desc: "Sent when a document request status changes" },
+            ].map((item) => (
+              <div key={item.trigger} className="flex items-start gap-3 py-2 border-b border-border/50 last:border-0">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-foreground">{item.trigger}</p>
+                    <Badge variant="outline" className="text-[10px]">{item.recipients}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Settings page ────────────────────────────────────────────────────────
 export default function Settings() {
   const { user } = useAuthStore();
@@ -294,7 +517,10 @@ export default function Settings() {
             {canAdmin && (
               <>
                 <TabsTrigger value="email-integration" className="gap-1.5">
-                  <Mail className="h-3.5 w-3.5" /> Email Integration
+                  <Mail className="h-3.5 w-3.5" /> Email Routing
+                </TabsTrigger>
+                <TabsTrigger value="email-notifications" className="gap-1.5">
+                  <Send className="h-3.5 w-3.5" /> Email Notifications
                 </TabsTrigger>
                 <TabsTrigger value="system" className="gap-1.5">
                   <SettingsIcon className="h-3.5 w-3.5" /> System
@@ -562,6 +788,13 @@ export default function Settings() {
             </TabsContent>
           )}
 
+          {/* ── Email Notifications ── */}
+          {canAdmin && (
+            <TabsContent value="email-notifications">
+              <EmailConfigSection isSuperAdmin={user?.role === "super_admin"} />
+            </TabsContent>
+          )}
+
           {/* ── System ── */}
           {canAdmin && (
             <TabsContent value="system">
@@ -569,20 +802,14 @@ export default function Settings() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" /> SMTP Configuration
+                      <Mail className="h-4 w-4 text-muted-foreground" /> SMTP / Outbound Email
                     </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Configure outbound email from the <strong>Email Notifications</strong> tab above.</p>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label>SMTP Host</Label><Input placeholder="smtp.company.com" /></div>
-                      <div className="space-y-1.5"><Label>Port</Label><Input placeholder="587" /></div>
-                      <div className="space-y-1.5"><Label>Username</Label><Input placeholder="support@company.com" /></div>
-                      <div className="space-y-1.5"><Label>Password</Label><Input type="password" placeholder="••••••••" /></div>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm">Test Connection</Button>
-                      <Button size="sm">Save</Button>
-                    </div>
+                  <CardContent>
+                    <Button variant="outline" size="sm" onClick={() => { const el = document.querySelector('[data-value="email-notifications"]') as HTMLElement; el?.click(); }}>
+                      Go to Email Notifications
+                    </Button>
                   </CardContent>
                 </Card>
                 <Card>

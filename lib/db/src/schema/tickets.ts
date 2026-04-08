@@ -18,6 +18,8 @@ export const ticketsTable = pgTable("tickets", {
   tags: text("tags").array().notNull().default([]),
   slaBreached: boolean("sla_breached").notNull().default(false),
   slaDeadline: timestamp("sla_deadline"),
+  raisedForName: text("raised_for_name"),
+  raisedForEmail: text("raised_for_email"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

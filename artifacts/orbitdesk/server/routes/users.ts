@@ -26,6 +26,7 @@ function formatUser(user: typeof usersTable.$inferSelect, departmentName?: strin
     departmentName: departmentName ?? null,
     avatar: user.avatar,
     isActive: user.isActive,
+    employeeId: (user as any).employeeId ?? null,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -73,6 +74,24 @@ router.post("/users", authMiddleware, async (req, res) => {
     res.status(201).json(formatUser(user, departmentName));
   } catch (err) {
     console.error("Create user error", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/users/lookup", authMiddleware, async (req, res) => {
+  try {
+    const { employeeId } = req.query;
+    if (!employeeId) { res.status(400).json({ error: "employeeId query param required" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq((usersTable as any).employeeId, employeeId as string)).limit(1);
+    if (!user) { res.status(404).json({ error: "Not Found", message: "No user found with that employee ID" }); return; }
+    let departmentName: string | null = null;
+    if (user.departmentId) {
+      const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, user.departmentId)).limit(1);
+      departmentName = dept?.name ?? null;
+    }
+    res.json(formatUser(user, departmentName));
+  } catch (err) {
+    console.error("Lookup user error", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -133,7 +152,7 @@ router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest,
   try {
     const callerRole = req.user!.role;
     const userId = parseInt(req.params.userId, 10);
-    const { name, role, departmentId, isActive } = req.body;
+    const { name, role, departmentId, isActive, employeeId } = req.body;
 
     if (role !== undefined) {
       const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -144,11 +163,12 @@ router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest,
       }
     }
 
-    const updates: Partial<typeof usersTable.$inferInsert> = {};
+    const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) updates.role = role;
     if (departmentId !== undefined) updates.departmentId = departmentId;
     if (isActive !== undefined) updates.isActive = isActive;
+    if (employeeId !== undefined) updates.employeeId = employeeId || null;
 
     const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
     if (!user) { res.status(404).json({ error: "Not Found" }); return; }

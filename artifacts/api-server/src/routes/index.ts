@@ -7,6 +7,7 @@ import departmentsRouter from "./departments";
 import dashboardRouter from "./dashboard";
 import emailRouter from "./email";
 import permissionsRouter from "./permissions";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(departmentsRouter);
 router.use(dashboardRouter);
 router.use(emailRouter);
 router.use(permissionsRouter);
+router.use(settingsRouter);
 
 export default router;

@@ -24,7 +24,7 @@ import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2, MoreHorizontal, ShieldOff, ShieldCheck, Trash2, UserMinus, UserCog2, ChevronDown, CheckSquare } from "lucide-react";
 
-type UserRow = { id: number; name: string; email: string; role: string; departmentId: number | null; departmentName: string | null; isActive: boolean; createdAt: string };
+type UserRow = { id: number; name: string; email: string; role: string; departmentId: number | null; departmentName: string | null; isActive: boolean; employeeId: string | null; createdAt: string };
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   super_admin: { label: "Super Admin", color: "bg-purple-100 text-purple-700 border-purple-200", icon: ShieldAlert },
@@ -165,6 +165,8 @@ export default function Users() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [changeRoleTarget, setChangeRoleTarget] = useState<UserRow | null>(null);
   const [changeRoleValue, setChangeRoleValue] = useState("employee");
+  const [empIdTarget, setEmpIdTarget] = useState<UserRow | null>(null);
+  const [empIdValue, setEmpIdValue] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -229,6 +231,21 @@ export default function Users() {
       await refetchUsers();
       const newLabel = ASSIGNABLE_ROLES.find((r) => r.value === newRole)?.label ?? newRole;
       toast({ title: "Role updated", description: `${u.name} is now ${newLabel}.` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSetEmpId = async () => {
+    if (!empIdTarget) return;
+    setActionLoading(true);
+    try {
+      await apiCall("PATCH", `/api/users/${empIdTarget.id}`, { employeeId: empIdValue.trim() || null });
+      await refetchUsers();
+      toast({ title: "Employee ID updated", description: empIdValue.trim() ? `${empIdTarget.name} has been assigned ID: ${empIdValue.trim()}` : `Employee ID removed from ${empIdTarget.name}` });
+      setEmpIdTarget(null);
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -474,6 +491,7 @@ export default function Users() {
                         <div>
                           <p className="font-medium text-foreground">{u.name}{isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}</p>
                           <p className="text-xs text-muted-foreground">{u.email}</p>
+                          {u.employeeId && <p className="text-xs font-mono text-blue-600/70 mt-0.5">ID: {u.employeeId}</p>}
                         </div>
                       </div>
                     </td>
@@ -512,6 +530,15 @@ export default function Users() {
                               >
                                 <UserCog className="h-4 w-4" />
                                 Change Role
+                              </DropdownMenuItem>
+                            )}
+                            {canManage && (
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => { setEmpIdTarget(u as UserRow); setEmpIdValue((u as any).employeeId ?? ""); }}
+                              >
+                                <UserCircle2 className="h-4 w-4" />
+                                Set Employee ID
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
@@ -630,6 +657,39 @@ export default function Users() {
             >
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set Employee ID Dialog */}
+      <Dialog open={!!empIdTarget} onOpenChange={(v) => !v && setEmpIdTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set Employee ID</DialogTitle>
+            <DialogDescription>
+              Assign an employee ID to <span className="font-semibold">{empIdTarget?.name}</span>. This is used for HR system integration and employee lookup.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="emp-id-input">Employee ID</Label>
+            <Input
+              id="emp-id-input"
+              placeholder="e.g. EMP-001, D001, etc."
+              value={empIdValue}
+              onChange={e => setEmpIdValue(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSetEmpId(); }}}
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to remove the employee ID.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmpIdTarget(null)} disabled={actionLoading}>Cancel</Button>
+            <Button
+              onClick={handleSetEmpId}
+              disabled={actionLoading}
+            >
+              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

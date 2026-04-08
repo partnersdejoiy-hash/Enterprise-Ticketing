@@ -7,6 +7,7 @@ import departmentsRouter from "./departments.js";
 import dashboardRouter from "./dashboard.js";
 import emailRouter from "./email.js";
 import permissionsRouter from "./permissions.js";
+import settingsRouter from "./settings.js";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use(departmentsRouter);
 router.use(dashboardRouter);
 router.use(emailRouter);
 router.use(permissionsRouter);
+router.use(settingsRouter);
 
 export default router;

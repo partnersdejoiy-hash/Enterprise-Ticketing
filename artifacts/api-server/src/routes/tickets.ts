@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, ticketsTable, usersTable, departmentsTable, commentsTable, ticketHistoryTable, rolePermissionsTable, eq, and, sql, ilike, inArray } from "@workspace/db";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
+import { sendTicketCreatedEmail, sendTicketStatusEmail, sendDocumentRequestEmail } from "../lib/emailService";
 
 const router = Router();
 
@@ -24,6 +25,8 @@ async function formatTicket(ticket: typeof ticketsTable.$inferSelect, users: Map
     assigneeName: ticket.assigneeId ? (users.get(ticket.assigneeId) ?? null) : null,
     createdById: ticket.createdById,
     createdByName: users.get(ticket.createdById) ?? "Unknown",
+    raisedForName: (ticket as any).raisedForName ?? null,
+    raisedForEmail: (ticket as any).raisedForEmail ?? null,
     tags: ticket.tags ?? [],
     slaBreached: ticket.slaBreached,
     slaDeadline: ticket.slaDeadline?.toISOString() ?? null,
@@ -127,7 +130,7 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       }
     }
 
-    const { subject, description, priority = "medium", departmentId, assigneeId, tags = [] } = req.body;
+    const { subject, description, priority = "medium", departmentId, assigneeId, tags = [], raisedForName, raisedForEmail } = req.body;
 
     if (!subject || !description) {
       res.status(400).json({ error: "Bad Request", message: "Subject and description required" });
@@ -138,49 +141,49 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
     const ticketNumber = generateTicketNumber();
 
     let slaDeadline: Date | null = null;
+    let deptName: string | undefined;
     if (departmentId) {
       const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, departmentId)).limit(1);
-      if (dept) {
-        slaDeadline = new Date(Date.now() + dept.slaResolutionHours * 3600 * 1000);
-      }
+      if (dept) { slaDeadline = new Date(Date.now() + dept.slaResolutionHours * 3600 * 1000); deptName = dept.name; }
     }
 
     const status = assigneeId ? "assigned" : "open";
 
     const [ticket] = await db
       .insert(ticketsTable)
-      .values({
-        ticketNumber,
-        subject,
-        description,
-        priority,
-        status,
-        departmentId: departmentId ?? null,
-        assigneeId: assigneeId ?? null,
-        createdById,
-        tags,
-        slaDeadline,
-      })
+      .values({ ticketNumber, subject, description, priority, status, departmentId: departmentId ?? null, assigneeId: assigneeId ?? null, createdById, tags, slaDeadline, raisedForName: raisedForName ?? null, raisedForEmail: raisedForEmail ?? null } as any)
       .returning();
 
-    await db.insert(ticketHistoryTable).values({
-      ticketId: ticket.id,
-      action: "created",
-      newValue: "open",
-      changedById: createdById,
-    });
+    await db.insert(ticketHistoryTable).values({ ticketId: ticket.id, action: "created", newValue: "open", changedById: createdById });
 
     const usersMap = new Map<number, string>();
-    const [creator] = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(eq(usersTable.id, createdById)).limit(1);
+    const [creator] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable).where(eq(usersTable.id, createdById)).limit(1);
     if (creator) usersMap.set(creator.id, creator.name);
 
     const deptsMap = new Map<number, string>();
-    if (departmentId) {
-      const [dept] = await db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable).where(eq(departmentsTable.id, departmentId)).limit(1);
-      if (dept) deptsMap.set(dept.id, dept.name);
-    }
+    if (departmentId && deptName) deptsMap.set(departmentId, deptName);
 
     const formatted = await formatTicket(ticket, usersMap, deptsMap);
+
+    const isDocumentRequest = Array.isArray(tags) && tags.includes("document-request");
+
+    if (isDocumentRequest && creator?.email) {
+      sendDocumentRequestEmail({
+        ticketNumber, subject, status,
+        requesterEmail: creator.email,
+        requesterName: creator.name ?? req.user!.name,
+      }).catch(() => {});
+    } else {
+      sendTicketCreatedEmail({
+        ticketNumber, subject, status, priority,
+        departmentName: deptName,
+        createdByName: creator?.name ?? req.user!.name,
+        createdByEmail: creator?.email,
+        raisedForName: raisedForName ?? undefined,
+        raisedForEmail: raisedForEmail ?? undefined,
+      }).catch(() => {});
+    }
+
     res.status(201).json(formatted);
   } catch (err) {
     req.log.error({ err }, "Create ticket error");
@@ -314,18 +317,35 @@ router.patch("/tickets/:ticketId", authMiddleware, async (req: AuthenticatedRequ
 
     const userIds = [updated.createdById, updated.assigneeId].filter(Boolean) as number[];
     const userRows = userIds.length > 0
-      ? await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, userIds))
+      ? await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable).where(inArray(usersTable.id, userIds))
       : [];
     const usersMap = new Map(userRows.map((u) => [u.id, u.name]));
     const deptsMap = new Map<number, string>();
+    let deptName: string | undefined;
     if (updated.departmentId) {
       const [dept] = await db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable).where(eq(departmentsTable.id, updated.departmentId)).limit(1);
-      if (dept) deptsMap.set(dept.id, dept.name);
+      if (dept) { deptsMap.set(dept.id, dept.name); deptName = dept.name; }
     }
 
     const [commentRow] = await db.select({ count: sql<number>`count(*)::int` }).from(commentsTable).where(eq(commentsTable.ticketId, ticketId));
     const formatted = await formatTicket(updated, usersMap, deptsMap);
     formatted.commentCount = commentRow?.count ?? 0;
+
+    const statusEntry = historyEntries.find((e) => e.action === "status_changed");
+    if (statusEntry) {
+      const creatorRow = userRows.find((u) => u.id === updated.createdById);
+      sendTicketStatusEmail({
+        ticketNumber: updated.ticketNumber,
+        subject: updated.subject,
+        oldStatus: statusEntry.oldValue ?? "",
+        newStatus: statusEntry.newValue ?? "",
+        priority: updated.priority,
+        departmentName: deptName,
+        changedByName: req.user!.name,
+        createdByEmail: creatorRow?.email,
+        raisedForEmail: (updated as any).raisedForEmail ?? undefined,
+      }).catch(() => {});
+    }
 
     res.json(formatted);
   } catch (err) {

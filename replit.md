@@ -47,7 +47,7 @@ Full-stack enterprise ticketing SaaS platform for large organizations. Similar t
 - Enums: role, ticket_status, ticket_priority
 
 ## Demo Credentials
-- **Super Admin**: admin@orbitdesk.com / password
+- **Super Admin (Deepak Sharma)**: admin@dejoiy.com / Jaymaakaali@321
 - **Agent (IT)**: alex.c@company.com / password
 - **HR Manager**: fatima.h@company.com / password
 
@@ -56,8 +56,22 @@ Full-stack enterprise ticketing SaaS platform for large organizations. Similar t
 2. Role-based access (super_admin, admin, manager, agent, employee, external)
 3. Ticket CRUD with status, priority, SLA tracking
 4. Department management (8 departments)
-5. User management
+5. User management with bulk role assignment and employee ID management
 6. Dashboard analytics (stats, dept breakdown, agent performance, SLA overview)
 7. Ticket conversation thread (public + internal notes)
 8. Ticket history timeline
 9. SLA breach detection and display
+10. Role Permissions Management (per-role capability toggles)
+11. CSV Bulk Import (users)
+12. Document Request Portal (HR documents via ticket flow)
+13. Email Notifications: SMTP config (editable by super admin in Settings), auto-emails on ticket create/resolve/close/document-request
+14. Employee ID field on users (display in table, "Set Employee ID" dialog in user dropdown)
+15. "Raising for" CC field on tickets (Myself / Someone Else toggle with employee ID lookup)
+16. system_settings DB table for key-value configuration (SMTP, toggles)
+17. Full mobile responsiveness
+
+## DB Schema Additions
+- `users.employee_id` — optional unique employee identifier (partial unique index)
+- `tickets.raised_for_name`, `tickets.raised_for_email` — CC/on-behalf-of fields
+- `system_settings` table — key/value store for SMTP and email config
+- `role_permissions` table — per-role feature capability flags

@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   departmentId: integer("department_id"),
   avatar: text("avatar"),
   isActive: boolean("is_active").notNull().default(true),
+  employeeId: text("employee_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
