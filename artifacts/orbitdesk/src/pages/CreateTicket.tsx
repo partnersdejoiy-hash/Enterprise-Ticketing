@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, TicketIcon, Users, User, Search, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, Loader2, TicketIcon, Users, User, Search, CheckCircle2, XCircle, Home, Lock } from "lucide-react";
 
 const schema = z.object({
   subject: z.string().min(3, "Subject must be at least 3 characters"),
@@ -53,6 +53,33 @@ export default function CreateTicket() {
       raisedForEmail: "",
     },
   });
+
+  const applyWfhTemplate = useCallback(() => {
+    const hrDept = departments?.find(d => /hr|human.?resource/i.test(d.name));
+    const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+    form.setValue("subject", `Work From Home Request — ${today}`, { shouldValidate: true });
+    form.setValue("description",
+      `I am requesting approval to work from home.\n\nDate(s): \nReason: \nWork plan for the day:\n\nI will remain reachable on phone and email during standard working hours and ensure all deliverables are met.\n\nPlease review and approve at your earliest convenience.\n\nThank you.`,
+      { shouldValidate: true }
+    );
+    form.setValue("priority", "low");
+    form.setValue("tags", "wfh-request");
+    if (hrDept) form.setValue("departmentId", String(hrDept.id));
+    toast({ title: "WFH template applied", description: "Fill in the remaining details and submit." });
+  }, [departments, form, toast]);
+
+  const applyPasswordResetTemplate = useCallback(() => {
+    const itDept = departments?.find(d => /^it$/i.test(d.name.trim()));
+    form.setValue("subject", "Password Reset Request", { shouldValidate: true });
+    form.setValue("description",
+      `I am unable to access my account and require a password reset.\n\nEmployee ID: \nLast successful login: \nAdditional notes: \n\nPlease assist at your earliest convenience.\n\nThank you.`,
+      { shouldValidate: true }
+    );
+    form.setValue("priority", "medium");
+    form.setValue("tags", "password-reset");
+    if (itDept) form.setValue("departmentId", String(itDept.id));
+    toast({ title: "Password reset template applied", description: "Fill in the remaining details and submit." });
+  }, [departments, form, toast]);
 
   const lookupEmployee = useCallback(async () => {
     if (!empIdInput.trim()) return;
@@ -116,6 +143,27 @@ export default function CreateTicket() {
         </div>
 
         <div className="space-y-4">
+          {/* Quick Templates */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-muted-foreground mr-1">Quick templates:</span>
+            <button
+              type="button"
+              onClick={applyWfhTemplate}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Home className="h-3.5 w-3.5 text-blue-500" />
+              Work From Home Request
+            </button>
+            <button
+              type="button"
+              onClick={applyPasswordResetTemplate}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Lock className="h-3.5 w-3.5 text-orange-500" />
+              Password Reset Request
+            </button>
+          </div>
+
           {/* Raising For */}
           <Card>
             <CardHeader className="pb-3">

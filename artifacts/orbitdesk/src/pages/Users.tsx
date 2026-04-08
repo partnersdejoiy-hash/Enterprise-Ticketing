@@ -22,7 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2, MoreHorizontal, ShieldOff, ShieldCheck, Trash2, UserMinus, UserCog2, ChevronDown, CheckSquare } from "lucide-react";
+import { Search, UserCircle2, ShieldAlert, Shield, UserCog, User, UserCheck, ExternalLink, Plus, Upload, Loader2, MoreHorizontal, ShieldOff, ShieldCheck, Trash2, UserMinus, UserCog2, ChevronDown, CheckSquare, KeyRound } from "lucide-react";
 
 type UserRow = { id: number; name: string; email: string; role: string; departmentId: number | null; departmentName: string | null; isActive: boolean; employeeId: string | null; createdAt: string };
 
@@ -167,6 +167,10 @@ export default function Users() {
   const [changeRoleValue, setChangeRoleValue] = useState("employee");
   const [empIdTarget, setEmpIdTarget] = useState<UserRow | null>(null);
   const [empIdValue, setEmpIdValue] = useState("");
+  const [resetPwdTarget, setResetPwdTarget] = useState<UserRow | null>(null);
+  const [resetPwdValue, setResetPwdValue] = useState("");
+  const [resetPwdConfirm, setResetPwdConfirm] = useState("");
+  const [resetPwdLoading, setResetPwdLoading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -250,6 +254,31 @@ export default function Users() {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPwdTarget) return;
+    if (!resetPwdValue || resetPwdValue.length < 6) {
+      toast({ title: "Invalid password", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    if (resetPwdValue !== resetPwdConfirm) {
+      toast({ title: "Passwords do not match", description: "Please ensure both passwords match.", variant: "destructive" });
+      return;
+    }
+    setResetPwdLoading(true);
+    try {
+      await apiCall("PATCH", `/api/users/${resetPwdTarget.id}`, { newPassword: resetPwdValue });
+      await refetchUsers();
+      toast({ title: "Password reset", description: `Password for ${resetPwdTarget.name} has been reset successfully.` });
+      setResetPwdTarget(null);
+      setResetPwdValue("");
+      setResetPwdConfirm("");
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setResetPwdLoading(false);
     }
   };
 
@@ -541,6 +570,15 @@ export default function Users() {
                                 Set Employee ID
                               </DropdownMenuItem>
                             )}
+                            {canManage && !isSelf && (
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => { setResetPwdTarget(u as UserRow); setResetPwdValue(""); setResetPwdConfirm(""); }}
+                              >
+                                <KeyRound className="h-4 w-4" />
+                                Reset Password
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             {u.isActive ? (
                               <DropdownMenuItem
@@ -690,6 +728,52 @@ export default function Users() {
             >
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetPwdTarget} onOpenChange={(v) => { if (!v) { setResetPwdTarget(null); setResetPwdValue(""); setResetPwdConfirm(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <span className="font-semibold">{resetPwdTarget?.name}</span>. They will be able to change it after logging in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="reset-pwd-new">New Password</Label>
+              <Input
+                id="reset-pwd-new"
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={resetPwdValue}
+                onChange={e => setResetPwdValue(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="reset-pwd-confirm">Confirm Password</Label>
+              <Input
+                id="reset-pwd-confirm"
+                type="password"
+                placeholder="Re-enter new password"
+                value={resetPwdConfirm}
+                onChange={e => setResetPwdConfirm(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleResetPassword(); } }}
+              />
+            </div>
+            {resetPwdValue && resetPwdConfirm && resetPwdValue !== resetPwdConfirm && (
+              <p className="text-xs text-destructive">Passwords do not match.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setResetPwdTarget(null); setResetPwdValue(""); setResetPwdConfirm(""); }} disabled={resetPwdLoading}>Cancel</Button>
+            <Button onClick={handleResetPassword} disabled={resetPwdLoading || !resetPwdValue || !resetPwdConfirm}>
+              {resetPwdLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reset Password
             </Button>
           </DialogFooter>
         </DialogContent>

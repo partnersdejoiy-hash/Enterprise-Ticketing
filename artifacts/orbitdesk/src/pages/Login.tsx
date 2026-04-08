@@ -16,7 +16,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -31,6 +33,11 @@ export default function Login() {
   const { setAuth } = useAuthStore();
   const { toast } = useToast();
   const loginMutation = useLogin();
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -61,6 +68,33 @@ export default function Login() {
         },
       }
     );
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim()) {
+      toast({ title: "Enter your email", description: "Please enter your registered email address.", variant: "destructive" });
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setForgotSent(true);
+    } catch {
+      toast({ title: "Error", description: "Something went wrong. Please try again.", variant: "destructive" });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotClose = () => {
+    setForgotOpen(false);
+    setForgotEmail("");
+    setForgotSent(false);
   };
 
   return (
@@ -107,9 +141,14 @@ export default function Login() {
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>Password</FormLabel>
-                        <a href="#" className="text-sm font-medium text-primary hover:underline" tabIndex={-1}>
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-primary hover:underline"
+                          tabIndex={-1}
+                          onClick={() => { setForgotOpen(true); setForgotEmail(form.getValues("email") || ""); }}
+                        >
                           Forgot password?
-                        </a>
+                        </button>
                       </div>
                       <FormControl>
                         <Input placeholder="••••••••" type="password" {...field} />
@@ -143,6 +182,60 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotOpen} onOpenChange={(v) => { if (!v) handleForgotClose(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Forgot Password?</DialogTitle>
+            <DialogDescription>
+              Enter your registered email address. A password reset ticket will be automatically raised with the IT team — they will contact you to verify your identity and reset your password.
+            </DialogDescription>
+          </DialogHeader>
+
+          {forgotSent ? (
+            <div className="py-6 flex flex-col items-center gap-3 text-center">
+              <CheckCircle2 className="h-12 w-12 text-green-500" />
+              <p className="font-semibold text-foreground">Request Submitted!</p>
+              <p className="text-sm text-muted-foreground">
+                If an account with this email exists, a password reset ticket has been raised with IT. They will contact you shortly.
+              </p>
+            </div>
+          ) : (
+            <div className="py-4 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="forgot-email">Your Email Address</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="name@company.com"
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleForgotPassword(); }}}
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The IT team (and admins) will handle your password reset request via the ticketing system.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            {forgotSent ? (
+              <Button onClick={handleForgotClose} className="w-full">Close</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={handleForgotClose} disabled={forgotLoading}>Cancel</Button>
+                <Button onClick={handleForgotPassword} disabled={forgotLoading}>
+                  {forgotLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Submit Request
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

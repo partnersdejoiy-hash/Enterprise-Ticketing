@@ -69,6 +69,9 @@ Full-stack enterprise ticketing SaaS platform for large organizations. Similar t
 15. "Raising for" CC field on tickets (Myself / Someone Else toggle with employee ID lookup)
 16. system_settings DB table for key-value configuration (SMTP, toggles)
 17. Full mobile responsiveness
+18. Forgot Password flow — login page "Forgot password?" link opens dialog; submits email → auto-creates IT ticket tagged `password-reset`; both servers support `POST /api/auth/forgot-password`
+19. Password reset by admin — "Reset Password" dropdown item in Users page (visible to super_admin, admin, IT dept); opens dialog with new/confirm password fields; calls `PATCH /api/users/:userId` with `newPassword`
+20. Quick ticket templates — Create Ticket page has "Work From Home Request" and "Password Reset Request" pill buttons that pre-fill subject, description, priority, tags, and department
 
 ## DB Schema Additions
 - `users.employee_id` — optional unique employee identifier (partial unique index)

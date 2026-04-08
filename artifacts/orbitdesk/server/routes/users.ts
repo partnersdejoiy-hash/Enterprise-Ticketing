@@ -152,7 +152,7 @@ router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest,
   try {
     const callerRole = req.user!.role;
     const userId = parseInt(req.params.userId, 10);
-    const { name, role, departmentId, isActive, employeeId } = req.body;
+    const { name, role, departmentId, isActive, employeeId, newPassword } = req.body;
 
     if (role !== undefined) {
       const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -163,12 +163,31 @@ router.patch("/users/:userId", authMiddleware, async (req: AuthenticatedRequest,
       }
     }
 
+    if (newPassword !== undefined) {
+      const callerDeptId = req.user!.departmentId;
+      let callerDeptName: string | null = null;
+      if (callerDeptId) {
+        const [d] = await db.select({ name: departmentsTable.name }).from(departmentsTable).where(eq(departmentsTable.id, callerDeptId)).limit(1);
+        callerDeptName = d?.name?.toLowerCase() ?? null;
+      }
+      const canResetPassword = callerRole === "super_admin" || callerRole === "admin" || callerDeptName === "it";
+      if (!canResetPassword) {
+        res.status(403).json({ error: "Forbidden", message: "Only super admin, admin, or IT can reset passwords" });
+        return;
+      }
+      if (!newPassword || newPassword.length < 6) {
+        res.status(400).json({ error: "Bad Request", message: "New password must be at least 6 characters" });
+        return;
+      }
+    }
+
     const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) updates.role = role;
     if (departmentId !== undefined) updates.departmentId = departmentId;
     if (isActive !== undefined) updates.isActive = isActive;
     if (employeeId !== undefined) updates.employeeId = employeeId || null;
+    if (newPassword !== undefined) updates.passwordHash = hashPassword(newPassword);
 
     const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
     if (!user) { res.status(404).json({ error: "Not Found" }); return; }

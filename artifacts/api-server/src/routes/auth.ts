@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, departmentsTable, eq } from "@workspace/db";
+import { db, usersTable, departmentsTable, ticketsTable, ticketHistoryTable, eq, ilike } from "@workspace/db";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth.js";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 
@@ -56,6 +56,46 @@ router.post("/auth/login", async (req, res) => {
 
 router.post("/auth/logout", (_req, res) => {
   res.json({ success: true, message: "Logged out" });
+});
+
+router.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: "Bad Request", message: "Email required" });
+      return;
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim())).limit(1);
+
+    if (user) {
+      const [itDept] = await db.select().from(departmentsTable).where(ilike(departmentsTable.name, "IT")).limit(1);
+      const ticketNumber = `TKT-${Date.now().toString(36).toUpperCase()}`;
+      const slaDeadline = itDept ? new Date(Date.now() + itDept.slaResolutionHours * 3600 * 1000) : null;
+
+      const [ticket] = await db.insert(ticketsTable).values({
+        ticketNumber,
+        subject: `Password Reset Request — ${user.name}`,
+        description: `User ${user.name} (${user.email}) has requested a password reset via the login page.\n\nPlease verify their identity and reset their password from the Users management page.`,
+        priority: "medium",
+        status: "open",
+        departmentId: itDept?.id ?? null,
+        assigneeId: null,
+        createdById: user.id,
+        tags: ["password-reset"],
+        slaDeadline,
+      } as any).returning();
+
+      if (ticket) {
+        await db.insert(ticketHistoryTable).values({ ticketId: ticket.id, action: "created", newValue: "open", changedById: user.id });
+      }
+    }
+
+    res.json({ message: "If an account with this email exists, a password reset ticket has been raised. IT will contact you shortly." });
+  } catch (err) {
+    req.log.error({ err }, "Forgot password error");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 router.get("/auth/me", authMiddleware, async (req: AuthenticatedRequest, res) => {
