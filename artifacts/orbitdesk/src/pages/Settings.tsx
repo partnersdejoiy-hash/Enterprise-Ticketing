@@ -1422,6 +1422,7 @@ export default function Settings() {
   const { user } = useAuthStore();
   const { toast } = useToast();
 
+  const isSuperAdmin = user?.role === "super_admin";
   const canAdmin = user?.role === "super_admin" || user?.role === "admin";
   const canManagePerms = user?.role === "super_admin" || user?.role === "admin";
   const manageableRoles = HIERARCHY[user?.role ?? ""] ?? [];
