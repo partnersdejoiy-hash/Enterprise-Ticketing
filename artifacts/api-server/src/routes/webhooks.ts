@@ -98,6 +98,38 @@ router.post("/config/regenerate-secret", authMiddleware, async (req: Authenticat
   res.json({ inboundSecret: newSecret });
 });
 
+// ─── Admin: set custom inbound secret ───────────────────────────────────────
+
+router.post("/config/set-secret", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  if (req.user?.role !== "super_admin") { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { secret } = req.body as { secret?: string };
+  if (!secret || secret.trim().length < 8) {
+    res.status(400).json({ error: "Secret must be at least 8 characters" }); return;
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(secret.trim())) {
+    res.status(400).json({ error: "Secret can only contain letters, numbers, hyphens and underscores" }); return;
+  }
+
+  const trimmed = secret.trim();
+  const [existing] = await db
+    .select()
+    .from(systemSettingsTable)
+    .where(eq(systemSettingsTable.key, "webhook_inbound_secret"))
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(systemSettingsTable)
+      .set({ value: trimmed })
+      .where(eq(systemSettingsTable.key, "webhook_inbound_secret"));
+  } else {
+    await db.insert(systemSettingsTable).values({ key: "webhook_inbound_secret", value: trimmed });
+  }
+  logger.info("Inbound webhook secret set to custom value");
+  res.json({ inboundSecret: trimmed });
+});
+
 // ─── Outgoing endpoints CRUD ────────────────────────────────────────────────
 
 router.post("/endpoints", authMiddleware, async (req: AuthenticatedRequest, res) => {

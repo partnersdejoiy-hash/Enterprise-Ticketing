@@ -734,6 +734,10 @@ function WebhooksSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [regenerating, setRegenerating] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [customSecretOpen, setCustomSecretOpen] = useState(false);
+  const [customSecretValue, setCustomSecretValue] = useState("");
+  const [customSecretSaving, setCustomSecretSaving] = useState(false);
+  const [customSecretError, setCustomSecretError] = useState("");
 
   const token = () => localStorage.getItem("auth_token");
   const hdrs = (json = true) => ({
@@ -776,6 +780,34 @@ function WebhooksSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setRegenerating(false); setConfirmRegen(false); }
+  };
+
+  const openCustomSecret = () => {
+    setCustomSecretValue(inboundSecret);
+    setCustomSecretError("");
+    setCustomSecretOpen(true);
+    setConfirmRegen(false);
+  };
+
+  const saveCustomSecret = async () => {
+    const val = customSecretValue.trim();
+    if (val.length < 8) { setCustomSecretError("Must be at least 8 characters"); return; }
+    if (!/^[a-zA-Z0-9_-]+$/.test(val)) { setCustomSecretError("Only letters, numbers, hyphens and underscores allowed"); return; }
+    setCustomSecretSaving(true);
+    setCustomSecretError("");
+    try {
+      const res = await fetch("/api/webhooks/config/set-secret", {
+        method: "POST", headers: hdrs(),
+        body: JSON.stringify({ secret: val }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      setInboundSecret(data.inboundSecret);
+      setCustomSecretOpen(false);
+      toast({ title: "Inbound URL updated", description: "Update your integrations with the new URL." });
+    } catch (e: any) {
+      setCustomSecretError(e.message);
+    } finally { setCustomSecretSaving(false); }
   };
 
   const upd = (k: keyof typeof form, v: unknown) => setForm(p => ({ ...p, [k]: v }));
@@ -879,22 +911,52 @@ function WebhooksSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                 </Button>
               </div>
               {isSuperAdmin && (
-                confirmRegen ? (
-                  <div className="flex items-center gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span className="flex-1">This will break existing integrations using the old URL. Continue?</span>
-                    <Button size="sm" variant="destructive" disabled={regenerating} onClick={regenerate} className="gap-1">
-                      {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                      Regenerate
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setConfirmRegen(false)}>Cancel</Button>
-                  </div>
-                ) : (
-                  <Button variant="outline" size="sm" className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
-                    onClick={() => setConfirmRegen(true)}>
-                    <RotateCcw className="h-3.5 w-3.5" /> Regenerate Secret
-                  </Button>
-                )
+                <>
+                  {customSecretOpen ? (
+                    <div className="space-y-2 p-3 rounded-md border border-border bg-muted/40">
+                      <p className="text-xs font-medium text-foreground">Set custom URL secret</p>
+                      <p className="text-xs text-muted-foreground">
+                        Letters, numbers, hyphens and underscores only — minimum 8 characters.
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          className="font-mono text-xs flex-1"
+                          placeholder="my-custom-secret-key"
+                          value={customSecretValue}
+                          onChange={e => { setCustomSecretValue(e.target.value); setCustomSecretError(""); }}
+                          onKeyDown={e => { if (e.key === "Enter") saveCustomSecret(); if (e.key === "Escape") setCustomSecretOpen(false); }}
+                          autoFocus
+                        />
+                        <Button size="sm" disabled={customSecretSaving} onClick={saveCustomSecret} className="gap-1 shrink-0">
+                          {customSecretSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setCustomSecretOpen(false)} className="shrink-0">Cancel</Button>
+                      </div>
+                      {customSecretError && <p className="text-xs text-destructive">{customSecretError}</p>}
+                    </div>
+                  ) : confirmRegen ? (
+                    <div className="flex items-center gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span className="flex-1">This will break existing integrations using the old URL. Continue?</span>
+                      <Button size="sm" variant="destructive" disabled={regenerating} onClick={regenerate} className="gap-1">
+                        {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                        Regenerate
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setConfirmRegen(false)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                        onClick={() => setConfirmRegen(true)}>
+                        <RotateCcw className="h-3.5 w-3.5" /> Regenerate Secret
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={openCustomSecret}>
+                        <Pencil className="h-3.5 w-3.5" /> Set Custom Secret
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
               <p className="text-xs text-muted-foreground">
                 Supported by Mailgun, SendGrid Inbound Parse, and any service that POSTs JSON email payloads.
