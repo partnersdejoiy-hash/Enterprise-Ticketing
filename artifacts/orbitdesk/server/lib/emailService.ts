@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { db, systemSettingsTable, eq } from "@workspace/db";
+import { db, systemSettingsTable, emailAccountsTable, eq } from "@workspace/db";
 
 export interface EmailConfig {
   host: string;
@@ -17,6 +17,25 @@ const DEFAULT_FROM_NAME = "OrbitDesk by Dejoiy";
 
 async function getEmailConfig(): Promise<EmailConfig> {
   try {
+    // First: try primary account from email_accounts table
+    const accounts = await db.select().from(emailAccountsTable);
+    const primary = accounts.find(a => a.isPrimarySender && a.smtpEnabled && a.smtpHost && a.smtpUser);
+    const anySmtp = accounts.find(a => a.smtpEnabled && a.smtpHost && a.smtpUser);
+    const chosen = primary ?? anySmtp;
+    if (chosen) {
+      return {
+        host: chosen.smtpHost ?? "",
+        port: chosen.smtpPort ?? 587,
+        secure: !!chosen.smtpSecure,
+        user: chosen.smtpUser ?? "",
+        pass: chosen.smtpPass ?? "",
+        fromEmail: chosen.smtpFromEmail || chosen.smtpUser || DEFAULT_FROM_EMAIL,
+        fromName: chosen.smtpFromName || DEFAULT_FROM_NAME,
+        enabled: true,
+      };
+    }
+
+    // Fallback: legacy system_settings SMTP config
     const rows = await db.select().from(systemSettingsTable);
     const get = (key: string) => rows.find((r) => r.key === key)?.value ?? "";
     return {

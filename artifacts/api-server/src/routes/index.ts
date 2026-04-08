@@ -11,6 +11,7 @@ import settingsRouter from "./settings";
 import automationRulesRouter from "./automationRules";
 import publicRequestRouter from "./publicRequest";
 import attachmentsRouter from "./attachments";
+import emailAccountsRouter from "./emailAccounts";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(settingsRouter);
 router.use(automationRulesRouter);
 router.use(publicRequestRouter);
 router.use(attachmentsRouter);
+router.use(emailAccountsRouter);
 
 export default router;

@@ -1,5 +1,5 @@
 import { ImapFlow } from "imapflow";
-import { db, systemSettingsTable, ticketsTable, usersTable, departmentsTable, automationRulesTable, eq, and } from "@workspace/db";
+import { db, systemSettingsTable, emailAccountsTable, ticketsTable, usersTable, departmentsTable, automationRulesTable, eq, and } from "@workspace/db";
 import type { AutomationCondition, AutomationAction } from "@workspace/db";
 
 export interface ImapConfig {
@@ -232,18 +232,10 @@ async function autoRouteDept(subject: string, body: string): Promise<number | un
   return undefined;
 }
 
-async function pollOnce(): Promise<void> {
-  const cfg = await getImapConfig();
-  if (!cfg.enabled || !cfg.host || !cfg.user || !cfg.pass) return;
-
-  const [systemUser] = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.role, "super_admin" as any))
-    .limit(1);
-  const creatorId = systemUser?.id;
-  if (!creatorId) return;
-
+async function pollAccount(cfg: {
+  host: string; port: number; secure: boolean;
+  user: string; pass: string; mailbox: string; departmentId?: number | null;
+}, creatorId: number): Promise<void> {
   const client = new ImapFlow({
     host: cfg.host, port: cfg.port, secure: cfg.secure,
     auth: { user: cfg.user, pass: cfg.pass },
@@ -260,7 +252,7 @@ async function pollOnce(): Promise<void> {
           unseen.push({ seq: msg.seq, envelope: msg.envelope, source: msg.source?.toString() ?? "" });
         }
       }
-      console.error(`[imap] Found ${unseen.length} unseen message(s) in ${cfg.mailbox}`);
+      console.error(`[imap] Account ${cfg.user}: ${unseen.length} unseen message(s) in ${cfg.mailbox}`);
       for (const msg of unseen) {
         try {
           const fromName = msg.envelope?.from?.[0]?.name || msg.envelope?.from?.[0]?.address || "Unknown Sender";
@@ -280,7 +272,7 @@ async function pollOnce(): Promise<void> {
             continue;
           }
 
-          const keywordDeptId = await autoRouteDept(subject, description);
+          const keywordDeptId = cfg.departmentId ?? await autoRouteDept(subject, description);
           const toEmail = cfg.user || "";
           const emailCtx = { from_email: fromEmail, to_email: toEmail, subject, body: description };
           const initialPatch: TicketPatch = {
@@ -311,32 +303,80 @@ async function pollOnce(): Promise<void> {
           } as any);
 
           await client.messageFlagsAdd(msg.seq, ["\\Seen"]);
-          console.error(`[imap] Created ticket from "${subject}" (${fromEmail})`);
+          console.error(`[imap] Created ticket from "${subject}" (${fromEmail}) via ${cfg.user}`);
         } catch (e) { console.error("[imap] Error processing message:", e); }
       }
     } finally { lock.release(); }
   } catch (err: any) {
-    console.error(`[imap] Poll failed: ${err.message}`);
+    console.error(`[imap] Poll failed for ${cfg.user}: ${err.message}`);
   } finally {
     try { await client.logout(); } catch {}
   }
 }
 
+async function pollAll(): Promise<void> {
+  const [systemUser] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.role, "super_admin" as any))
+    .limit(1);
+  const creatorId = systemUser?.id;
+  if (!creatorId) return;
+
+  // Poll all enabled IMAP accounts from email_accounts table
+  const emailAccounts = await db.select().from(emailAccountsTable);
+  const activeAccounts = emailAccounts.filter(a => a.imapEnabled && a.imapHost && a.imapUser && a.imapPass);
+  for (const acc of activeAccounts) {
+    await pollAccount({
+      host: acc.imapHost!, port: acc.imapPort ?? 993, secure: acc.imapSecure !== false,
+      user: acc.imapUser!, pass: acc.imapPass!,
+      mailbox: acc.imapMailbox || "INBOX",
+      departmentId: acc.departmentId,
+    }, creatorId).catch(e => console.error(`[imap] Error polling ${acc.imapUser}:`, e));
+  }
+
+  // Also poll legacy system_settings IMAP config (backward compat)
+  const cfg = await getImapConfig();
+  if (cfg.enabled && cfg.host && cfg.user && cfg.pass) {
+    await pollAccount({
+      host: cfg.host, port: cfg.port, secure: cfg.secure,
+      user: cfg.user, pass: cfg.pass, mailbox: cfg.mailbox || "INBOX",
+    }, creatorId).catch(e => console.error("[imap] Error polling legacy account:", e));
+  }
+}
+
 let _timer: ReturnType<typeof setTimeout> | null = null;
 
-export async function startImapPoller(): Promise<void> {
+async function getMinPollInterval(): Promise<number> {
+  try {
+    const accounts = await db.select({ imapEnabled: emailAccountsTable.imapEnabled, imapPollInterval: emailAccountsTable.imapPollInterval }).from(emailAccountsTable);
+    const active = accounts.filter(a => a.imapEnabled);
+    if (active.length > 0) return Math.min(...active.map(a => Math.max(1, a.imapPollInterval ?? 5)));
+  } catch {}
   const cfg = await getImapConfig().catch(() => null);
-  if (!cfg?.enabled || !cfg.host) {
-    console.error("[imap] Poller not started (disabled or not configured).");
+  return cfg?.enabled ? (cfg.pollInterval || 5) : 5;
+}
+
+export async function startImapPoller(): Promise<void> {
+  const emailAccounts = await db.select({ imapEnabled: emailAccountsTable.imapEnabled, imapHost: emailAccountsTable.imapHost }).from(emailAccountsTable).catch(() => []);
+  const anyAccountEnabled = emailAccounts.some(a => a.imapEnabled && a.imapHost);
+  const cfg = await getImapConfig().catch(() => null);
+  const legacyEnabled = cfg?.enabled && !!cfg.host;
+
+  if (!anyAccountEnabled && !legacyEnabled) {
+    console.error("[imap] Poller not started (no enabled IMAP accounts configured).");
     return;
   }
-  const intervalMs = (cfg.pollInterval || 5) * 60_000;
+
+  const intervalMin = await getMinPollInterval();
+  const intervalMs = intervalMin * 60_000;
   const tick = async () => {
-    try { await pollOnce(); } catch (e) { console.error("[imap] tick error:", e); }
+    try { await pollAll(); } catch (e) { console.error("[imap] tick error:", e); }
     _timer = setTimeout(tick, intervalMs);
   };
   _timer = setTimeout(tick, 30_000);
-  console.error(`[imap] Poller scheduled — interval: ${cfg.pollInterval} min, mailbox: ${cfg.mailbox}`);
+  const total = emailAccounts.filter(a => a.imapEnabled && a.imapHost).length + (legacyEnabled ? 1 : 0);
+  console.error(`[imap] Poller started — monitoring ${total} account(s) every ${intervalMin} min`);
 }
 
 export async function restartImapPoller(): Promise<void> {

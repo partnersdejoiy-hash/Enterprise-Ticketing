@@ -18,8 +18,12 @@ import { useAllPermissions, type RolePermissions } from "@/hooks/usePermissions"
 import {
   User, Bell, Settings as SettingsIcon, Shield, Mail, Globe,
   Zap, Copy, CheckCircle2, Loader2, ShieldCheck, Lock, Info,
-  Eye, EyeOff, Send, RefreshCw, ToggleLeft, ToggleRight, Inbox, Wifi
+  Eye, EyeOff, Send, RefreshCw, ToggleLeft, ToggleRight, Inbox, Wifi,
+  Plus, Trash2, Pencil, Star, StarOff, ServerCog, FlaskConical, X, Building2
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose
+} from "@/components/ui/dialog";
 
 // ─── Role hierarchy ────────────────────────────────────────────────────────────
 const HIERARCHY: Record<string, string[]> = {
@@ -636,6 +640,396 @@ function ImapConfigSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   );
 }
 
+// ─── Email Accounts section ────────────────────────────────────────────────────
+interface EmailAccount {
+  id: number; name: string; isPrimarySender: boolean;
+  smtpHost: string; smtpPort: number; smtpSecure: boolean;
+  smtpUser: string; smtpPass: string; smtpFromEmail: string; smtpFromName: string; smtpEnabled: boolean;
+  imapHost: string; imapPort: number; imapSecure: boolean;
+  imapUser: string; imapPass: string; imapMailbox: string; imapPollInterval: number; imapEnabled: boolean;
+  departmentId: number | null; departmentName?: string | null;
+}
+
+const BLANK_ACCOUNT: Omit<EmailAccount, "id"> = {
+  name: "", isPrimarySender: false,
+  smtpHost: "", smtpPort: 587, smtpSecure: false,
+  smtpUser: "", smtpPass: "", smtpFromEmail: "", smtpFromName: "OrbitDesk by Dejoiy", smtpEnabled: false,
+  imapHost: "", imapPort: 993, imapSecure: true,
+  imapUser: "", imapPass: "", imapMailbox: "INBOX", imapPollInterval: 5, imapEnabled: false,
+  departmentId: null,
+};
+
+function EmailAccountsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const { toast } = useToast();
+  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<EmailAccount | null>(null);
+  const [form, setForm] = useState<Omit<EmailAccount, "id">>(BLANK_ACCOUNT);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<{ id: number; type: "smtp" | "imap" } | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [showImapPass, setShowImapPass] = useState(false);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+
+  const token = () => localStorage.getItem("auth_token");
+  const hdrs = (json = true) => ({
+    Authorization: `Bearer ${token()}`,
+    ...(json ? { "Content-Type": "application/json" } : {}),
+  });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [accsRes, deptsRes] = await Promise.all([
+        fetch("/api/email-accounts", { headers: hdrs(false) }),
+        fetch("/api/departments", { headers: hdrs(false) }),
+      ]);
+      if (accsRes.ok) setAccounts(await accsRes.json());
+      if (deptsRes.ok) setDepartments(await deptsRes.json());
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const upd = (k: keyof typeof form, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+
+  const openAdd = () => { setEditing(null); setForm(BLANK_ACCOUNT); setShowSmtpPass(false); setShowImapPass(false); setOpen(true); };
+  const openEdit = (a: EmailAccount) => { setEditing(a); setForm({ ...a }); setShowSmtpPass(false); setShowImapPass(false); setOpen(true); };
+
+  const save = async () => {
+    if (!form.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const url = editing ? `/api/email-accounts/${editing.id}` : "/api/email-accounts";
+      const method = editing ? "PUT" : "POST";
+      const res = await fetch(url, { method, headers: hdrs(), body: JSON.stringify(form) });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Save failed"); }
+      toast({ title: editing ? "Account updated" : "Account created" });
+      setOpen(false);
+      await load();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const del = async (id: number) => {
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/email-accounts/${id}`, { method: "DELETE", headers: hdrs(false) });
+      if (!res.ok) throw new Error("Delete failed");
+      toast({ title: "Account deleted" });
+      setAccounts(p => p.filter(a => a.id !== id));
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setDeleting(null); }
+  };
+
+  const setPrimary = async (id: number) => {
+    try {
+      const res = await fetch(`/api/email-accounts/${id}/set-primary`, { method: "POST", headers: hdrs(false) });
+      if (!res.ok) throw new Error();
+      toast({ title: "Primary sender set" });
+      setAccounts(p => p.map(a => ({ ...a, isPrimarySender: a.id === id })));
+    } catch { toast({ title: "Error", variant: "destructive" }); }
+  };
+
+  const testConn = async (id: number, type: "smtp" | "imap") => {
+    setTesting({ id, type });
+    try {
+      const res = await fetch(`/api/email-accounts/${id}/test-${type}`, { method: "POST", headers: hdrs() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.details ?? "Test failed");
+      toast({ title: `${type.toUpperCase()} test passed`, description: data.message });
+    } catch (e: any) {
+      toast({ title: `${type.toUpperCase()} test failed`, description: e.message, variant: "destructive" });
+    } finally { setTesting(null); }
+  };
+
+  const isTesting = (id: number, type: "smtp" | "imap") => testing?.id === id && testing?.type === type;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Email Accounts</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Configure multiple SMTP/IMAP accounts for sending notifications and receiving tickets via email.
+          </p>
+        </div>
+        {isSuperAdmin && (
+          <Button size="sm" onClick={openAdd} className="gap-1.5 shrink-0">
+            <Plus className="h-3.5 w-3.5" /> Add Account
+          </Button>
+        )}
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading accounts…
+        </div>
+      )}
+
+      {!loading && accounts.length === 0 && (
+        <div className="border border-dashed rounded-lg p-10 text-center">
+          <ServerCog className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm font-medium text-foreground">No email accounts configured</p>
+          <p className="text-xs text-muted-foreground mt-1">Add an account to enable email sending and receiving.</p>
+          {isSuperAdmin && <Button size="sm" className="mt-4 gap-1.5" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add First Account</Button>}
+        </div>
+      )}
+
+      <div className="grid gap-4">
+        {accounts.map(acc => (
+          <Card key={acc.id} className={`border ${acc.isPrimarySender ? "border-primary/50 bg-primary/5" : ""}`}>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-foreground truncate">{acc.name}</span>
+                      {acc.isPrimarySender && (
+                        <Badge variant="default" className="text-[10px] py-0 px-1.5 shrink-0">Primary Sender</Badge>
+                      )}
+                      {acc.smtpEnabled && <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 text-blue-600 border-blue-200">SMTP</Badge>}
+                      {acc.imapEnabled && <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 text-green-600 border-green-200">IMAP</Badge>}
+                    </div>
+                    {acc.departmentName && (
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Building2 className="h-3 w-3" /> Routes to {acc.departmentName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {isSuperAdmin && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!acc.isPrimarySender && acc.smtpEnabled && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => setPrimary(acc.id)}>
+                        <Star className="h-3 w-3" /> Set Primary
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(acc)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm" variant="ghost"
+                      className="h-7 px-2 text-destructive hover:text-destructive"
+                      onClick={() => del(acc.id)}
+                      disabled={deleting === acc.id}
+                    >
+                      {deleting === acc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* SMTP */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <Send className="h-3 w-3" /> Outgoing (SMTP)
+                  </p>
+                  {acc.smtpHost ? (
+                    <div className="text-xs space-y-0.5 text-foreground">
+                      <p><span className="text-muted-foreground">Host:</span> {acc.smtpHost}:{acc.smtpPort} {acc.smtpSecure ? "(TLS)" : "(STARTTLS)"}</p>
+                      <p><span className="text-muted-foreground">From:</span> {acc.smtpFromEmail || acc.smtpUser}</p>
+                      <p><span className="text-muted-foreground">Status:</span> <span className={acc.smtpEnabled ? "text-green-600 font-medium" : "text-muted-foreground"}>{acc.smtpEnabled ? "Enabled" : "Disabled"}</span></p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Not configured</p>
+                  )}
+                  {isSuperAdmin && acc.smtpHost && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 mt-1" onClick={() => testConn(acc.id, "smtp")} disabled={isTesting(acc.id, "smtp")}>
+                      {isTesting(acc.id, "smtp") ? <Loader2 className="h-3 w-3 animate-spin" /> : <FlaskConical className="h-3 w-3" />} Test SMTP
+                    </Button>
+                  )}
+                </div>
+
+                {/* IMAP */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <Inbox className="h-3 w-3" /> Incoming (IMAP)
+                  </p>
+                  {acc.imapHost ? (
+                    <div className="text-xs space-y-0.5 text-foreground">
+                      <p><span className="text-muted-foreground">Host:</span> {acc.imapHost}:{acc.imapPort} {acc.imapSecure ? "(SSL)" : "(plain)"}</p>
+                      <p><span className="text-muted-foreground">Mailbox:</span> {acc.imapMailbox} · Poll every {acc.imapPollInterval}m</p>
+                      <p><span className="text-muted-foreground">Status:</span> <span className={acc.imapEnabled ? "text-green-600 font-medium" : "text-muted-foreground"}>{acc.imapEnabled ? "Enabled" : "Disabled"}</span></p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Not configured</p>
+                  )}
+                  {isSuperAdmin && acc.imapHost && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 mt-1" onClick={() => testConn(acc.id, "imap")} disabled={isTesting(acc.id, "imap")}>
+                      {isTesting(acc.id, "imap") ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />} Test IMAP
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Email Account" : "Add Email Account"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Name & Department */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Account Name <span className="text-destructive">*</span></Label>
+                <Input placeholder="e.g. HR Support, Main IT Helpdesk" value={form.name} onChange={e => upd("name", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Route Incoming Emails To Department</Label>
+                <Select
+                  value={form.departmentId ? String(form.departmentId) : "__none__"}
+                  onValueChange={v => upd("departmentId", v === "__none__" ? null : parseInt(v))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Auto-detect (keyword routing)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Auto-detect (keyword routing)</SelectItem>
+                    {departments.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Switch id="primary-sender" checked={!!form.isPrimarySender} onCheckedChange={v => upd("isPrimarySender", v)} />
+              <Label htmlFor="primary-sender" className="cursor-pointer">Set as primary outgoing sender (overrides legacy SMTP config)</Label>
+            </div>
+
+            <Separator />
+
+            {/* SMTP */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold flex items-center gap-2"><Send className="h-4 w-4 text-blue-500" /> Outgoing Email (SMTP)</p>
+                <div className="flex items-center gap-2">
+                  <Switch id="smtp-enabled" checked={!!form.smtpEnabled} onCheckedChange={v => upd("smtpEnabled", v)} />
+                  <Label htmlFor="smtp-enabled" className="cursor-pointer text-xs">Enable</Label>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">SMTP Host</Label>
+                  <Input placeholder="smtp.gmail.com" value={form.smtpHost} onChange={e => upd("smtpHost", e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Port</Label>
+                    <Input type="number" placeholder="587" value={form.smtpPort} onChange={e => upd("smtpPort", parseInt(e.target.value) || 587)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">SSL/TLS</Label>
+                    <div className="flex items-center gap-2 h-9">
+                      <Switch checked={!!form.smtpSecure} onCheckedChange={v => upd("smtpSecure", v)} />
+                      <span className="text-xs text-muted-foreground">{form.smtpSecure ? "TLS" : "STARTTLS"}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Username / Email</Label>
+                  <Input placeholder="user@example.com" value={form.smtpUser} onChange={e => upd("smtpUser", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Password / App Password</Label>
+                  <div className="relative">
+                    <Input type={showSmtpPass ? "text" : "password"} placeholder="••••••••" value={form.smtpPass} onChange={e => upd("smtpPass", e.target.value)} className="pr-9" />
+                    <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowSmtpPass(p => !p)}>
+                      {showSmtpPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">From Email Address</Label>
+                  <Input type="email" placeholder="noreply@example.com" value={form.smtpFromEmail} onChange={e => upd("smtpFromEmail", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">From Display Name</Label>
+                  <Input placeholder="OrbitDesk by Dejoiy" value={form.smtpFromName} onChange={e => upd("smtpFromName", e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* IMAP */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold flex items-center gap-2"><Inbox className="h-4 w-4 text-green-500" /> Incoming Email (IMAP) — Ticket Generation</p>
+                <div className="flex items-center gap-2">
+                  <Switch id="imap-enabled" checked={!!form.imapEnabled} onCheckedChange={v => upd("imapEnabled", v)} />
+                  <Label htmlFor="imap-enabled" className="cursor-pointer text-xs">Enable</Label>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">IMAP Host</Label>
+                  <Input placeholder="imap.gmail.com" value={form.imapHost} onChange={e => upd("imapHost", e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Port</Label>
+                    <Input type="number" placeholder="993" value={form.imapPort} onChange={e => upd("imapPort", parseInt(e.target.value) || 993)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">SSL</Label>
+                    <div className="flex items-center gap-2 h-9">
+                      <Switch checked={form.imapSecure !== false} onCheckedChange={v => upd("imapSecure", v)} />
+                      <span className="text-xs text-muted-foreground">{form.imapSecure ? "SSL" : "Plain"}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Username</Label>
+                  <Input placeholder="user@example.com" value={form.imapUser} onChange={e => upd("imapUser", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Password / App Password</Label>
+                  <div className="relative">
+                    <Input type={showImapPass ? "text" : "password"} placeholder="••••••••" value={form.imapPass} onChange={e => upd("imapPass", e.target.value)} className="pr-9" />
+                    <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowImapPass(p => !p)}>
+                      {showImapPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Mailbox / Folder</Label>
+                  <Input placeholder="INBOX" value={form.imapMailbox} onChange={e => upd("imapMailbox", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Poll Interval (minutes)</Label>
+                  <Input type="number" min={1} max={60} placeholder="5" value={form.imapPollInterval} onChange={e => upd("imapPollInterval", Math.max(1, parseInt(e.target.value) || 5))} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={save} disabled={saving} className="gap-1.5">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {editing ? "Save Changes" : "Create Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Settings page ────────────────────────────────────────────────────────
 export default function Settings() {
   const { user } = useAuthStore();
@@ -708,6 +1102,9 @@ export default function Settings() {
             )}
             {canAdmin && (
               <>
+                <TabsTrigger value="email-accounts" className="gap-1.5">
+                  <ServerCog className="h-3.5 w-3.5" /> Email Accounts
+                </TabsTrigger>
                 <TabsTrigger value="email-integration" className="gap-1.5">
                   <Mail className="h-3.5 w-3.5" /> Email Routing
                 </TabsTrigger>
@@ -858,6 +1255,13 @@ export default function Settings() {
                   })
                 )}
               </div>
+            </TabsContent>
+          )}
+
+          {/* ── Email Accounts ── */}
+          {canAdmin && (
+            <TabsContent value="email-accounts">
+              <EmailAccountsSection isSuperAdmin={isSuperAdmin} />
             </TabsContent>
           )}
 
