@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, departmentsTable, ticketsTable, ticketHistoryTable, eq, ilike } from "@workspace/db";
+import { db, usersTable, departmentsTable, ticketsTable, ticketHistoryTable, systemSettingsTable, eq, ilike } from "@workspace/db";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth.js";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
 
@@ -120,6 +120,22 @@ router.get("/auth/me", authMiddleware, async (req: AuthenticatedRequest, res) =>
   } catch (err) {
     console.error("Get me error", err);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/auth/sso/init", async (_req, res) => {
+  try {
+    const rows = await db.select().from(systemSettingsTable);
+    const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    const ssoEnabled = settings["sso_enabled"] === "true";
+    const ssoUrl = settings["sso_redirect_url"] ?? null;
+    if (ssoEnabled && ssoUrl) {
+      res.json({ url: ssoUrl });
+    } else {
+      res.json({ url: null });
+    }
+  } catch {
+    res.json({ url: null });
   }
 });
 

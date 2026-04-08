@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -38,12 +38,13 @@ export default function Login() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "admin@dejoiy.com",
-      password: "Jaymaakaali@321",
+      email: "",
+      password: "",
     },
   });
 
@@ -68,6 +69,31 @@ export default function Login() {
         },
       }
     );
+  };
+
+  const handleSSOLogin = async () => {
+    setSsoLoading(true);
+    try {
+      const res = await fetch("/api/auth/sso/init");
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast({
+          title: "SSO not configured",
+          description: "Single Sign-On has not been configured for this organisation. Please contact your IT administrator.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "SSO unavailable",
+        description: "Could not reach the SSO service. Please use email and password to sign in.",
+        variant: "destructive",
+      });
+    } finally {
+      setSsoLoading(false);
+    }
   };
 
   const handleForgotPassword = async () => {
@@ -118,7 +144,7 @@ export default function Login() {
               Enter your credentials to access your workspace
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
@@ -128,7 +154,7 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="name@example.com" type="email" {...field} />
+                        <Input placeholder="name@example.com" type="email" autoComplete="email" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -151,15 +177,15 @@ export default function Login() {
                         </button>
                       </div>
                       <FormControl>
-                        <Input placeholder="••••••••" type="password" {...field} />
+                        <Input placeholder="••••••••" type="password" autoComplete="current-password" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button 
-                  type="submit" 
-                  className="w-full mt-2" 
+                <Button
+                  type="submit"
+                  className="w-full mt-2"
                   disabled={loginMutation.isPending}
                 >
                   {loginMutation.isPending ? (
@@ -169,9 +195,33 @@ export default function Login() {
                 </Button>
               </form>
             </Form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={handleSSOLogin}
+              disabled={ssoLoading}
+            >
+              {ssoLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Shield className="h-4 w-4" />
+              )}
+              Sign in with SSO
+            </Button>
           </CardContent>
         </Card>
-        
+
         <div className="mt-8 flex flex-col items-center gap-1">
           <div className="flex items-center gap-1.5">
             <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-4 h-4 rounded object-cover" />
