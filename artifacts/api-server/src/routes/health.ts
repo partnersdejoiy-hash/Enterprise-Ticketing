@@ -1,11 +1,12 @@
-import { Router, type IRouter } from "express";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { HealthCheckResponse } from "@workspace/api-zod";
 
-const router: IRouter = Router();
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
 
-router.get("/healthz", (_req, res) => {
   const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
-});
 
-export default router;
+  return res.status(200).json(data);
+}
