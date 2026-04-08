@@ -1,13 +1,13 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./health.js";
-import authRouter from "./auth.js";
-import usersRouter from "./users.js";
-import ticketsRouter from "./tickets.js";
-import departmentsRouter from "./departments.js";
-import dashboardRouter from "./dashboard.js";
-import emailRouter from "./email.js";
-import permissionsRouter from "./permissions.js";
-import settingsRouter from "./settings.js";
+import healthRouter from "./health.ts";
+import authRouter from "./auth.ts";
+import usersRouter from "./users.ts";
+import ticketsRouter from "./tickets.ts";
+import departmentsRouter from "./departments.ts";
+import dashboardRouter from "./dashboard.ts";
+import emailRouter from "./email.ts";
+import permissionsRouter from "./permissions.ts";
+import settingsRouter from "./settings.ts";
 
 const router: IRouter = Router();
 
