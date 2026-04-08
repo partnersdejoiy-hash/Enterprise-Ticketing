@@ -9,6 +9,7 @@ import emailRouter from "./email.js";
 import permissionsRouter from "./permissions.js";
 import settingsRouter from "./settings.js";
 import publicRequestRouter from "./publicRequest.js";
+import attachmentsRouter from "./attachments.js";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use(dashboardRouter);
 router.use(emailRouter);
 router.use(permissionsRouter);
 router.use(settingsRouter);
+router.use(attachmentsRouter);
 
 export default router;

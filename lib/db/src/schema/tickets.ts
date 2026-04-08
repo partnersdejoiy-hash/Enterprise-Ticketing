@@ -43,6 +43,17 @@ export const ticketHistoryTable = pgTable("ticket_history", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const ticketAttachmentsTable = pgTable("ticket_attachments", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileData: text("file_data").notNull(),
+  uploadedById: integer("uploaded_by_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof ticketsTable.$inferSelect;
@@ -50,3 +61,5 @@ export type Ticket = typeof ticketsTable.$inferSelect;
 export const insertCommentSchema = createInsertSchema(commentsTable).omit({ id: true, createdAt: true });
 export type InsertComment = z.infer<typeof insertCommentSchema>;
 export type Comment = typeof commentsTable.$inferSelect;
+
+export type TicketAttachment = typeof ticketAttachmentsTable.$inferSelect;

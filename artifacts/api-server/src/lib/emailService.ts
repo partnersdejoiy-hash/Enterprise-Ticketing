@@ -71,7 +71,19 @@ function statusBadge(status: string): string {
   return `<span class="badge badge-${status}">${status.replace("_", " ")}</span>`;
 }
 
-export async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
+export interface EmailAttachmentInput {
+  filename: string;
+  content: string;
+  encoding: "base64";
+  contentType: string;
+}
+
+export async function sendEmail(
+  to: string | string[],
+  subject: string,
+  html: string,
+  attachments?: EmailAttachmentInput[],
+): Promise<void> {
   const cfg = await getEmailConfig();
   if (!cfg.enabled || !cfg.host) {
     console.error(`[email] Email not configured/disabled. Would have sent to ${Array.isArray(to) ? to.join(", ") : to}: ${subject}`);
@@ -85,6 +97,11 @@ export async function sendEmail(to: string | string[], subject: string, html: st
       to: recipients,
       subject,
       html,
+      attachments: attachments?.map(a => ({
+        filename: a.filename,
+        content: Buffer.from(a.content.replace(/^data:[^;]+;base64,/, ""), "base64"),
+        contentType: a.contentType,
+      })),
     });
     console.error(`[email] Sent "${subject}" to ${recipients}`);
   } catch (err) {

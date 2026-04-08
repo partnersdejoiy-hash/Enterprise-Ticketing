@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, TicketIcon, Users, User, Search, CheckCircle2, XCircle, Home, Lock } from "lucide-react";
+import { ArrowLeft, Loader2, TicketIcon, Users, User, Search, CheckCircle2, XCircle, Home, Lock, Paperclip, X as XIcon, File, FileText, Image, FileSpreadsheet } from "lucide-react";
 
 const schema = z.object({
   subject: z.string().min(3, "Subject must be at least 3 characters"),
@@ -39,6 +39,68 @@ export default function CreateTicket() {
   const [raisingForOther, setRaisingForOther] = useState(false);
   const [empIdInput, setEmpIdInput] = useState("");
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  const ALLOWED_MIME = [
+    "application/pdf","application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain","text/csv","image/png","image/jpeg","image/gif","image/webp","application/zip",
+  ];
+
+  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    const valid = files.filter(f => {
+      if (!ALLOWED_MIME.includes(f.type)) {
+        toast({ title: "Unsupported type", description: `${f.name} cannot be attached.`, variant: "destructive" });
+        return false;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        toast({ title: "File too large", description: `${f.name} exceeds 10 MB.`, variant: "destructive" });
+        return false;
+      }
+      return true;
+    });
+    setPendingFiles(prev => [...prev, ...valid]);
+  };
+
+  const removePendingFile = (idx: number) =>
+    setPendingFiles(prev => prev.filter((_, i) => i !== idx));
+
+  const getFileIcon = (type: string) => {
+    if (type.startsWith("image/")) return <Image className="h-3.5 w-3.5 text-blue-500" />;
+    if (type === "application/pdf") return <FileText className="h-3.5 w-3.5 text-red-500" />;
+    if (type.includes("spreadsheet") || type.includes("excel") || type === "text/csv")
+      return <FileSpreadsheet className="h-3.5 w-3.5 text-green-600" />;
+    return <File className="h-3.5 w-3.5 text-slate-500" />;
+  };
+
+  const uploadFiles = async (ticketId: number) => {
+    const token = localStorage.getItem("auth_token");
+    let uploaded = 0;
+    for (const file of pendingFiles) {
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const res = await fetch(`/api/tickets/${ticketId}/attachments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ fileName: file.name, fileType: file.type, fileData: dataUrl }),
+        });
+        if (res.ok) uploaded++;
+      } catch {}
+    }
+    return uploaded;
+  };
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -119,9 +181,19 @@ export default function CreateTicket() {
         } : {}),
       } as any
     }, {
-      onSuccess: (ticket) => {
-        toast({ title: "Ticket created", description: `${ticket.ticketNumber} has been created` });
-        setLocation(`/tickets/${ticket.id}`);
+      onSuccess: async (ticket) => {
+        if (pendingFiles.length > 0) {
+          setUploadingFiles(true);
+          const uploaded = await uploadFiles((ticket as any).id);
+          setUploadingFiles(false);
+          toast({
+            title: "Ticket created",
+            description: `${(ticket as any).ticketNumber} created with ${uploaded} attachment(s)`,
+          });
+        } else {
+          toast({ title: "Ticket created", description: `${(ticket as any).ticketNumber} has been created` });
+        }
+        setLocation(`/tickets/${(ticket as any).id}`);
       },
       onError: () => {
         toast({ title: "Error", description: "Failed to create ticket", variant: "destructive" });
@@ -401,13 +473,68 @@ export default function CreateTicket() {
                     )}
                   />
 
+                  {/* Attachments */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                        <Paperclip className="h-4 w-4 text-muted-foreground" /> Attachments
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        + Add files
+                      </button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept={ALLOWED_MIME.join(",")}
+                      onChange={handleFileAdd}
+                    />
+                    {pendingFiles.length === 0 ? (
+                      <div
+                        className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
+                        <span className="text-xs text-muted-foreground">Click to attach files (PDF, Word, Excel, images — max 10 MB each)</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {pendingFiles.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2 text-sm">
+                            {getFileIcon(f.type)}
+                            <span className="flex-1 truncate text-foreground">{f.name}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {f.size < 1024 * 1024 ? `${(f.size / 1024).toFixed(0)} KB` : `${(f.size / (1024 * 1024)).toFixed(1)} MB`}
+                            </span>
+                            <button type="button" onClick={() => removePendingFile(i)} className="text-muted-foreground hover:text-destructive">
+                              <XIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          + Add more files
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end gap-3 pt-2">
                     <Button type="button" variant="outline" onClick={() => setLocation("/tickets")}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={createTicket.isPending}>
-                      {createTicket.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Create Ticket
+                    <Button type="submit" disabled={createTicket.isPending || uploadingFiles}>
+                      {(createTicket.isPending || uploadingFiles) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      {uploadingFiles ? "Uploading files…" : "Create Ticket"}
                     </Button>
                   </div>
             </CardContent>

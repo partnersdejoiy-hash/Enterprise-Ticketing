@@ -10,6 +10,7 @@ import permissionsRouter from "./permissions";
 import settingsRouter from "./settings";
 import automationRulesRouter from "./automationRules";
 import publicRequestRouter from "./publicRequest";
+import attachmentsRouter from "./attachments";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(permissionsRouter);
 router.use(settingsRouter);
 router.use(automationRulesRouter);
 router.use(publicRequestRouter);
+router.use(attachmentsRouter);
 
 export default router;

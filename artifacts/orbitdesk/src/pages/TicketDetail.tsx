@@ -24,6 +24,7 @@ import {
   CheckCircle2, MessageSquare, Lock, Globe, Send, History,
   TicketIcon, Trash2
 } from "lucide-react";
+import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   open: { label: "Open", color: "bg-blue-100 text-blue-700 border-blue-200" },
@@ -306,6 +307,9 @@ export default function TicketDetail() {
               </div>
             </div>
           </div>
+
+          {/* Attachments */}
+          <AttachmentsPanel ticketId={ticketId} ticketNumber={ticket.ticketNumber} />
 
           {/* Sidebar */}
           <div className="space-y-4">
