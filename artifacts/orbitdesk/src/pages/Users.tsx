@@ -10,15 +10,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub,
-  DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth";
@@ -164,6 +163,8 @@ export default function Users() {
   const [bulkRoleDialog, setBulkRoleDialog] = useState(false);
   const [bulkRole, setBulkRole] = useState("employee");
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [changeRoleTarget, setChangeRoleTarget] = useState<UserRow | null>(null);
+  const [changeRoleValue, setChangeRoleValue] = useState("employee");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -503,27 +504,14 @@ export default function Users() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
-                            {/* Change Role submenu */}
                             {canChangeRole(u.role) && !isSelf && (
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger className="gap-2">
-                                  <UserCog className="h-4 w-4" />
-                                  Change Role
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="w-44">
-                                  {assignableRoles.map((r) => (
-                                    <DropdownMenuItem
-                                      key={r.value}
-                                      className={`gap-2 ${u.role === r.value ? "font-semibold text-primary" : ""}`}
-                                      onClick={() => handleChangeRole(u as UserRow, r.value)}
-                                      disabled={u.role === r.value}
-                                    >
-                                      {u.role === r.value && <span className="text-primary mr-1">✓</span>}
-                                      {r.label}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => { setChangeRoleTarget(u as UserRow); setChangeRoleValue(u.role); }}
+                              >
+                                <UserCog className="h-4 w-4" />
+                                Change Role
+                              </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
                             {u.isActive ? (
@@ -601,6 +589,45 @@ export default function Users() {
             <Button onClick={handleBulkChangeRole} disabled={bulkLoading}>
               {bulkLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Apply to {selected.size} User{selected.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single-user Change Role Dialog */}
+      <Dialog open={!!changeRoleTarget} onOpenChange={(v) => !v && setChangeRoleTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change Role</DialogTitle>
+            <DialogDescription>
+              Updating role for <span className="font-semibold">{changeRoleTarget?.name}</span>.
+              Current role: <span className="capitalize font-medium">{changeRoleTarget?.role?.replace("_", " ")}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={changeRoleValue} onValueChange={setChangeRoleValue}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {assignableRoles.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChangeRoleTarget(null)} disabled={actionLoading}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!changeRoleTarget) return;
+                await handleChangeRole(changeRoleTarget, changeRoleValue);
+                setChangeRoleTarget(null);
+              }}
+              disabled={actionLoading || changeRoleValue === changeRoleTarget?.role}
+            >
+              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Apply
             </Button>
           </DialogFooter>
         </DialogContent>

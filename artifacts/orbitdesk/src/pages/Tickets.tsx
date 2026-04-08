@@ -114,7 +114,32 @@ export default function Tickets() {
     }
   }, [queryString]);
 
-  const { data, isLoading, refetch } = useListTickets({
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const ids = Array.from(selected);
+      await Promise.all(ids.map((id) =>
+        fetch(`/api/tickets/${id}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+      ));
+      await queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      toast({ title: "Tickets deleted", description: `${ids.length} ticket${ids.length !== 1 ? "s" : ""} permanently deleted` });
+      setSelected(new Set());
+      setConfirmBulkDelete(false);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const { data, isLoading, isFetching, refetch } = useListTickets({
     status: status || undefined,
     priority: priority || undefined,
     departmentId: departmentId ? parseInt(departmentId) : undefined,
@@ -213,10 +238,39 @@ export default function Tickets() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-9 px-2.5 text-muted-foreground">
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-9 px-2.5 text-muted-foreground" title="Refresh tickets">
+            <RefreshCw className={`h-4 w-4 transition-transform ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
+
+        {/* Bulk selection bar */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-medium">{selected.size} ticket{selected.size !== 1 ? "s" : ""} selected</span>
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 ml-auto"
+                onClick={() => setConfirmBulkDelete(true)}
+                disabled={bulkDeleting}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete {selected.size} Ticket{selected.size !== 1 ? "s" : ""}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className={`h-7 text-xs ${canDelete ? "" : "ml-auto"}`}
+              onClick={() => setSelected(new Set())}
+              disabled={bulkDeleting}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
 
         {/* Table */}
         <div className="border border-border rounded-lg overflow-hidden bg-card">
@@ -351,6 +405,7 @@ export default function Tickets() {
       </div>
       <BulkUploadDialog open={showBulk} onClose={() => setShowBulk(false)} type="tickets" onSuccess={refetch} />
 
+      {/* Single-ticket delete */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -367,6 +422,28 @@ export default function Tickets() {
               disabled={deleting}
             >
               {deleting ? "Deleting…" : "Delete Ticket"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete */}
+      <AlertDialog open={confirmBulkDelete} onOpenChange={(open) => !open && setConfirmBulkDelete(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.size} Ticket{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{selected.size}</strong> selected ticket{selected.size !== 1 ? "s" : ""}, along with all their comments and history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? "Deleting…" : `Delete ${selected.size} Ticket${selected.size !== 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
