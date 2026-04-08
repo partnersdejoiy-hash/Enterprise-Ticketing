@@ -19,12 +19,7 @@ run = "pnpm --filter @workspace/orbitdesk run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/orbitdesk", "run", "build" ]
-publicDir = "artifacts/orbitdesk/dist/public"
-serve = "static"
-
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+run = "pnpm --filter @workspace/orbitdesk run start"
 
 [services.env]
 PORT = "23387"
