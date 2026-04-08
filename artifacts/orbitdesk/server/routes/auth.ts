@@ -69,7 +69,7 @@ router.post("/auth/forgot-password", async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim())).limit(1);
 
     if (user) {
-      const [itDept] = await db.select().from(departmentsTable).where(ilike(departmentsTable.name, "IT")).limit(1);
+      const [itDept] = await db.select().from(departmentsTable).where(ilike(departmentsTable.name, "IT%")).limit(1);
       const ticketNumber = `TKT-${Date.now().toString(36).toUpperCase()}`;
       const slaDeadline = itDept ? new Date(Date.now() + itDept.slaResolutionHours * 3600 * 1000) : null;
 

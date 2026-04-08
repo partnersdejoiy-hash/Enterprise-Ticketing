@@ -98,7 +98,7 @@ export default function TicketDetail() {
   const handleSendComment = () => {
     if (!comment.trim()) return;
     createComment.mutate({
-      params: { ticketId },
+      ticketId,
       data: { content: comment, isInternal }
     }, {
       onSuccess: () => {
@@ -112,7 +112,7 @@ export default function TicketDetail() {
 
   const handleUpdateField = (field: string, value: string | number | null) => {
     updateTicket.mutate({
-      params: { ticketId },
+      ticketId,
       data: { [field]: value }
     }, {
       onSuccess: () => {

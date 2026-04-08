@@ -109,7 +109,8 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
       }
     }
 
-    const { subject, description, priority = "medium", departmentId, assigneeId, tags = [], raisedForName, raisedForEmail } = req.body;
+    const { subject, description, priority = "medium", assigneeId, tags = [], raisedForName, raisedForEmail } = req.body;
+    let departmentId: number | undefined = req.body.departmentId;
 
     if (!subject || !description) {
       res.status(400).json({ error: "Bad Request", message: "Subject and description required" });
@@ -118,6 +119,18 @@ router.post("/tickets", authMiddleware, async (req: AuthenticatedRequest, res) =
 
     const createdById = req.user!.id;
     const ticketNumber = generateTicketNumber();
+
+    // Auto-route to department based on tags if no department was specified
+    if (!departmentId && Array.isArray(tags) && tags.length > 0) {
+      const allDepts = await db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable);
+      if (tags.includes("password-reset")) {
+        const itDept = allDepts.find(d => /\bit\b|it support|information.?tech/i.test(d.name));
+        if (itDept) departmentId = itDept.id;
+      } else if (tags.includes("wfh-request") || tags.includes("document-request")) {
+        const hrDept = allDepts.find(d => /hr|human.?resource/i.test(d.name));
+        if (hrDept) departmentId = hrDept.id;
+      }
+    }
 
     let slaDeadline: Date | null = null;
     let deptName: string | undefined;
