@@ -300,7 +300,7 @@ export default function Users() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-foreground">Users</h1>
@@ -398,7 +398,8 @@ export default function Users() {
         )}
 
         <div className="border border-border rounded-lg overflow-hidden bg-card">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[500px]">
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 {canManage && (
@@ -414,9 +415,9 @@ export default function Users() {
                 )}
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">User</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Role</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Department</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide hidden sm:table-cell">Department</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Joined</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide hidden md:table-cell">Joined</th>
                 {canManage && <th className="px-4 py-2.5 text-right font-medium text-muted-foreground text-xs uppercase tracking-wide">Actions</th>}
               </tr>
             </thead>
@@ -482,7 +483,7 @@ export default function Users() {
                         {roleCfg.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden sm:table-cell">
                       <span className="text-muted-foreground">{u.departmentName ?? "—"}</span>
                     </td>
                     <td className="px-4 py-3">
@@ -490,7 +491,7 @@ export default function Users() {
                         {u.isActive ? "Active" : "Revoked"}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <span className="text-xs text-muted-foreground">
                         {new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </span>
@@ -559,6 +560,7 @@ export default function Users() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

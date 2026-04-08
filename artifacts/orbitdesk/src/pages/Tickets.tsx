@@ -167,7 +167,7 @@ export default function Tickets() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-4">
+      <div className="p-3 sm:p-6 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -191,7 +191,7 @@ export default function Tickets() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center justify-between sm:justify-start">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -274,7 +274,8 @@ export default function Tickets() {
 
         {/* Table */}
         <div className="border border-border rounded-lg overflow-hidden bg-card">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 <th className="w-10 px-3 py-2.5 text-left">
@@ -288,11 +289,11 @@ export default function Tickets() {
                 </th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Ticket</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Subject</th>
-                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Department</th>
+                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide hidden sm:table-cell">Department</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
-                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Priority</th>
-                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Assignee</th>
-                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide">Created</th>
+                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide hidden md:table-cell">Priority</th>
+                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide hidden lg:table-cell">Assignee</th>
+                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide hidden md:table-cell">Created</th>
                 {canDelete && <th className="w-10 px-3 py-2.5" />}
               </tr>
             </thead>
@@ -345,19 +346,19 @@ export default function Tickets() {
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2.5 hidden sm:table-cell">
                     <span className="text-muted-foreground text-sm">{ticket.departmentName ?? "—"}</span>
                   </td>
                   <td className="px-3 py-2.5">
                     <StatusBadge status={ticket.status} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2.5 hidden md:table-cell">
                     <PriorityBadge priority={ticket.priority} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2.5 hidden lg:table-cell">
                     <span className="text-sm text-muted-foreground">{ticket.assigneeName ?? <span className="italic">Unassigned</span>}</span>
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2.5 hidden md:table-cell">
                     <span className="text-xs text-muted-foreground">{formatDate(ticket.createdAt)}</span>
                   </td>
                   {canDelete && (
@@ -384,6 +385,7 @@ export default function Tickets() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Pagination */}

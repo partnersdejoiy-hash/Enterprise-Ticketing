@@ -272,7 +272,7 @@ export default function Settings() {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-4xl">
+      <div className="p-3 sm:p-6 max-w-4xl">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-foreground">Settings</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your account and system preferences</p>

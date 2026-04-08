@@ -126,7 +126,7 @@ export default function TicketDetail() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="p-6 space-y-4">
+        <div className="p-3 sm:p-6 space-y-4">
           <Skeleton className="h-8 w-48" />
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2 space-y-4">
@@ -143,7 +143,7 @@ export default function TicketDetail() {
   if (!ticket) {
     return (
       <AppLayout>
-        <div className="p-6 text-center text-muted-foreground">
+        <div className="p-3 sm:p-6 text-center text-muted-foreground">
           <p>Ticket not found</p>
           <Button variant="link" onClick={() => setLocation("/tickets")}>Back to Tickets</Button>
         </div>
