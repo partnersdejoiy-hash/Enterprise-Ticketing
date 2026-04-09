@@ -214,7 +214,7 @@ async function pollAccount(cfg: {
   }
 }
 
-async function pollAll(): Promise<void> {
+export async function pollAll(): Promise<void> {
   const [systemUser] = await db
     .select({ id: usersTable.id })
     .from(usersTable)

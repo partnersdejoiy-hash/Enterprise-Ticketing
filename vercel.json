@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "pnpm install && cd lib/db && npx tsc -p tsconfig.json && cd ../.. && pnpm --filter @workspace/orbitdesk run build",
-  "outputDirectory": "artifacts/orbitdesk/dist",
+  "buildCommand": "pnpm install && pnpm --filter @workspace/orbitdesk run build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "outputDirectory": "artifacts/orbitdesk/dist/public",
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3",
@@ -11,6 +12,12 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/imap-poll",
+      "schedule": "*/2 * * * *"
+    }
   ],
   "env": {
     "NODE_ENV": "production"

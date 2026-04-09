@@ -12,9 +12,9 @@ app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 app.use("/api", router);
 
-if (process.env.NODE_ENV === "production") {
+if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const staticPath = path.join(process.cwd(), "dist", "public");
+  const staticPath = path.join(__dirname, "..", "dist", "public");
   app.use(express.static(staticPath));
   app.get("*", (_req: Request, res: Response) => {
     res.sendFile(path.join(staticPath, "index.html"));
