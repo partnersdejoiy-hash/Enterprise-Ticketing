@@ -69,6 +69,9 @@ async function getEmailConfig(): Promise<EmailConfig> {
 
 function createTransporter(cfg: EmailConfig) {
   return nodemailer.createTransport({
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 8000,
     host: cfg.host,
     port: cfg.port,
     secure: cfg.secure,
@@ -240,7 +243,15 @@ export async function sendTicketStatusEmail(opts: {
   if (opts.createdByEmail) to.push(opts.createdByEmail);
   if (opts.raisedForEmail && opts.raisedForEmail !== opts.createdByEmail)
     to.push(opts.raisedForEmail);
-  if (!to.length) return;
+  const { acceptsStatusEmail } = await import("./ticket-notifications.js");
+  const recipients = (
+    await Promise.all(
+      to.map(async (email) =>
+        (await acceptsStatusEmail(email)) ? email : null,
+      ),
+    )
+  ).filter((email): email is string => !!email);
+  if (!recipients.length) return;
 
   const actionMap: Record<string, { title: string; msg: string }> = {
     resolved: {
@@ -285,7 +296,11 @@ export async function sendTicketStatusEmail(opts: {
   `,
   );
 
-  await sendEmail(to, `[OrbitDesk] ${info.title}: ${opts.ticketNumber}`, html);
+  await sendEmail(
+    recipients,
+    `[OrbitDesk] ${info.title}: ${opts.ticketNumber}`,
+    html,
+  );
 }
 
 export async function sendDocumentRequestEmail(opts: {

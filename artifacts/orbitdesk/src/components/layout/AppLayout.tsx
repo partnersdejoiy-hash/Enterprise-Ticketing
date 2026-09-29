@@ -1,3 +1,4 @@
+import OrbitAssistant from "@/components/OrbitAssistant";
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
@@ -553,6 +554,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OrbitAssistant />
     </div>
   );
 }

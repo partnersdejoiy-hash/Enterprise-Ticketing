@@ -1,3 +1,7 @@
+import { notifyTicket } from "../lib/ticket-notifications.js";
+import { classifyTeam } from "../lib/team-classifier.js";
+import { getRoutingSettings } from "../lib/workspace-settings.js";
+import { runAutomations } from "../lib/automation.js";
 import { allowed } from "../lib/permissions.js";
 import { Router } from "express";
 import {
@@ -25,10 +29,6 @@ import {
   sendTicketStatusEmail,
   sendDocumentRequestEmail,
 } from "../lib/emailService";
-import {
-  autoAssignForDepartment,
-  autoAssignFromDepartments,
-} from "../lib/autoAssign.js";
 
 import {
   ticketScope,
@@ -329,12 +329,10 @@ router.post(
           .limit(1);
 
         if (rolePerm && !rolePerm.canCreateTicket) {
-          res
-            .status(403)
-            .json({
-              error: "Forbidden",
-              message: "Your role does not have permission to create tickets",
-            });
+          res.status(403).json({
+            error: "Forbidden",
+            message: "Your role does not have permission to create tickets",
+          });
           return;
         }
       }
@@ -363,12 +361,10 @@ router.post(
         tags.length > 20 ||
         tags.some((t: any) => typeof t !== "string" || t.length > 80)
       ) {
-        res
-          .status(400)
-          .json({
-            error: "Bad Request",
-            message: "Subject and description required",
-          });
+        res.status(400).json({
+          error: "Bad Request",
+          message: "Subject and description required",
+        });
         return;
       }
 
@@ -412,93 +408,25 @@ router.post(
       const createdById = req.user!.id;
       const ticketNumber = generateTicketNumber();
 
-      // Auto-route to department based on tags and subject keywords if no department was specified
+      // Structured verification type outranks the local text classifier.
       if (!departmentId) {
-        const allDepts = await db
-          .select({ id: departmentsTable.id, name: departmentsTable.name })
-          .from(departmentsTable);
-        const tagList: string[] = Array.isArray(tags) ? tags : [];
-        const text = `${subject} ${description}`.toLowerCase();
-
-        const itDept = allDepts.find((d) =>
-          /\bit\b|it support|information.?tech/i.test(d.name),
-        );
-        const hrDept = allDepts.find((d) => /hr|human.?resource/i.test(d.name));
-        const finDept = allDepts.find((d) => /financ|accounts/i.test(d.name));
-        const legalDept = allDepts.find((d) => /legal/i.test(d.name));
-        const adminDept = allDepts.find((d) => /\badmin\b/i.test(d.name));
-        const bgvDept = allDepts.find((d) =>
-          /bgv|background.?verif/i.test(d.name),
-        );
-        const opsDept = allDepts.find((d) => /operat/i.test(d.name));
-        const csDept = allDepts.find((d) =>
-          /customer.?support|support.?team/i.test(d.name),
-        );
-
-        let resolved: typeof itDept | undefined;
-
-        // 1. Tag-based routing (highest priority)
-        if (tagList.includes("password-reset")) resolved = itDept;
-        else if (tagList.includes("wfh-request")) resolved = hrDept;
-        else if (tagList.includes("document-request")) resolved = hrDept;
-        else if (tagList.includes("employment-verification")) resolved = hrDept;
-        else if (tagList.includes("bgv-request")) resolved = bgvDept;
-        // 2. Subject/description keyword routing
-        else if (
-          /password|reset.*password|cannot.*login|account.*lock|vpn|laptop|computer|printer|software|hardware|network|wifi|wi-fi|it support|email.*setup|email.*access|system.*error|access.*denied|two.?factor|2fa|antivirus|malware|virus/.test(
-            text,
-          )
+        const routing = await getRoutingSettings();
+        if (
+          tags.includes("bgv-request") ||
+          tags.includes("background-verification")
         )
-          resolved = itDept;
-        else if (
-          /employ.*verif|employment.?verif|verification.?letter|verif.*employ/.test(
-            text,
-          )
-        )
-          resolved = hrDept;
-        else if (
-          /wfh|work.?from.?home|work from home|leave|salary|payroll|attendance|appraisal|performance.?review|joining|onboarding|resignation|offer.?letter|increment|promotion|transfer|pf\b|epf|esic|health.?insurance|id.?card|employee.?id|document.?request/.test(
-            text,
-          )
-        )
-          resolved = hrDept;
-        else if (
-          /bgv|background.?check|background.?verif|reference.?check/.test(text)
-        )
-          resolved = bgvDept;
-        else if (
-          /invoic|payment|reimburs|expense|budget|finance|tax|audit|accounts|petty.?cash|purchase.?order|vendor.?payment/.test(
-            text,
-          )
-        )
-          resolved = finDept;
-        else if (
-          /legal|contract|nda|compliance|agreement|clause|policy.?review|litigation/.test(
-            text,
-          )
-        )
-          resolved = legalDept;
-        else if (
-          /admin|office.?supply|stationary|stationery|pantry|housekeep|facility|parking|cab|transport|travel.?request|hotel.?booking|flight/.test(
-            text,
-          )
-        )
-          resolved = adminDept;
-        else if (
-          /customer|client.?issue|client.?complaint|customer.?complaint|refund|escalation/.test(
-            text,
-          )
-        )
-          resolved = csDept;
-        else if (/operation|ops\b|process|workflow|sop|procedure/.test(text))
-          resolved = opsDept;
-
-        if (resolved) departmentId = resolved.id;
+          departmentId = routing.bgvDepartmentId ?? undefined;
+        else if (tags.includes("employment-verification"))
+          departmentId = routing.employmentDepartmentId ?? undefined;
+        else {
+          const teams = await db.select().from(departmentsTable);
+          departmentId =
+            classifyTeam(`${subject} ${description}`, teams).departmentId ??
+            undefined;
+        }
       }
 
-      // Build multi-dept assignment pool for certain ticket types
-      const tagList2: string[] = Array.isArray(tags) ? tags : [];
-      let assignmentPoolDeptIds: number[] = departmentId ? [departmentId] : [];
+      // SLA and explicit assignment are validated before the event engine runs.
       let slaDeadline: Date | null = null;
       let deptName: string | undefined;
       if (departmentId) {
@@ -515,13 +443,8 @@ router.post(
         }
       }
 
-      // Auto-assign from the pool (round-robin by workload)
+      // Automatic assignment runs transactionally after the ticket is saved.
       let resolvedAssigneeId: number | null = assigneeId ?? null;
-      if (!resolvedAssigneeId && assignmentPoolDeptIds.length > 0) {
-        resolvedAssigneeId = await autoAssignFromDepartments(
-          assignmentPoolDeptIds,
-        );
-      }
 
       if (
         departmentId &&
@@ -539,11 +462,9 @@ router.post(
         resolvedAssigneeId &&
         !(await validAssignee(resolvedAssigneeId, departmentId ?? null))
       ) {
-        res
-          .status(400)
-          .json({
-            error: "Assign an active handling agent in the selected department",
-          });
+        res.status(400).json({
+          error: "Assign an active handling agent in the selected department",
+        });
         return;
       }
       const status = resolvedAssigneeId ? "assigned" : "open";
@@ -569,19 +490,21 @@ router.post(
         } as any)
         .returning();
 
-      await db
-        .insert(ticketHistoryTable)
-        .values({
-          ticketId: ticket.id,
-          action: "created",
-          newValue: status,
-          changedById: createdById,
-        });
+      await db.insert(ticketHistoryTable).values({
+        ticketId: ticket.id,
+        action: "created",
+        newValue: status,
+        changedById: createdById,
+      });
 
+      Object.assign(
+        ticket,
+        (await runAutomations(ticket.id, ["ticket_created"])) || {},
+      );
       const usersMap = new Map<number, string>();
       const userIdsToFetch = [
         ...new Set(
-          [createdById, resolvedAssigneeId].filter(Boolean) as number[],
+          [createdById, ticket.assigneeId].filter(Boolean) as number[],
         ),
       ];
       const fetchedUsers = await db
@@ -789,11 +712,9 @@ router.patch(
           (assigneeId !== undefined && req.user!.role !== "manager") ||
           tags !== undefined)
       ) {
-        res
-          .status(403)
-          .json({
-            error: "Only administrators can change routing and classification",
-          });
+        res.status(403).json({
+          error: "Only administrators can change routing and classification",
+        });
         return;
       }
       if (
@@ -822,12 +743,10 @@ router.patch(
         existing.tags.includes("business-website") &&
         (tags !== undefined || departmentId !== undefined)
       ) {
-        res
-          .status(409)
-          .json({
-            error:
-              "Website request classification is protected. Configure department routing before intake.",
-          });
+        res.status(409).json({
+          error:
+            "Website request classification is protected. Configure department routing before intake.",
+        });
         return;
       }
       if (
@@ -939,6 +858,12 @@ router.patch(
         .where(eq(ticketsTable.id, ticketId))
         .returning();
 
+      Object.assign(
+        updated,
+        (await runAutomations(updated.id, ["ticket_updated"])) || {},
+      );
+      if (assigneeId && assigneeId !== existing.assigneeId)
+        await notifyTicket(updated.id, "assigned", req.user!.id);
       const changedById = req.user!.id;
       if (historyEntries.length > 0) {
         await Promise.all(
@@ -1019,12 +944,10 @@ router.delete(
     try {
       const callerRole = req.user!.role;
       if (callerRole !== "super_admin" && callerRole !== "admin") {
-        res
-          .status(403)
-          .json({
-            error: "Forbidden",
-            message: "Only Super Admins and Admins can delete tickets",
-          });
+        res.status(403).json({
+          error: "Forbidden",
+          message: "Only Super Admins and Admins can delete tickets",
+        });
         return;
       }
       if (!(await allowed(req.user!, "canDeleteTickets"))) {
@@ -1037,11 +960,9 @@ router.delete(
         .from(ticketsTable)
         .where(eq(ticketsTable.id, ticketId));
       if (sourceTicket?.tags.includes("business-website")) {
-        res
-          .status(409)
-          .json({
-            error: "Close verification requests to retain their audit trail.",
-          });
+        res.status(409).json({
+          error: "Close verification requests to retain their audit trail.",
+        });
         return;
       }
       // Delete comments and history first
@@ -1146,18 +1067,18 @@ router.post(
         .set({ updatedAt: new Date() })
         .where(eq(ticketsTable.id, ticketId));
 
-      res
-        .status(201)
-        .json({
-          id: comment.id,
-          ticketId: comment.ticketId,
-          content: comment.content,
-          isInternal: comment.isInternal,
-          authorId: comment.authorId,
-          authorName: req.user!.name,
-          authorAvatar: req.user!.avatar ?? null,
-          createdAt: comment.createdAt.toISOString(),
-        });
+      await runAutomations(ticketId, ["ticket_updated"]);
+      await notifyTicket(ticketId, "comments", authorId, isInternal);
+      res.status(201).json({
+        id: comment.id,
+        ticketId: comment.ticketId,
+        content: comment.content,
+        isInternal: comment.isInternal,
+        authorId: comment.authorId,
+        authorName: req.user!.name,
+        authorAvatar: req.user!.avatar ?? null,
+        createdAt: comment.createdAt.toISOString(),
+      });
     } catch (err) {
       console.error("Create comment error", err);
       res.status(500).json({ error: "Internal Server Error" });
@@ -1253,6 +1174,7 @@ router.post(
               tags,
             })
             .returning();
+          await runAutomations(ticket.id, ["ticket_created"]);
           created.push(ticket.id);
         } catch (e) {
           errors.push({ row: i + 1, error: "Insert failed" });

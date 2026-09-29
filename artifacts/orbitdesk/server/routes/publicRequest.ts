@@ -1,3 +1,5 @@
+import { classifyTeam } from "../lib/team-classifier.js";
+import { runAutomations } from "../lib/automation.js";
 import { rateLimit, escapeHtml } from "../lib/security.js";
 import { randomBytes } from "node:crypto";
 import { Router } from "express";
@@ -11,7 +13,6 @@ import {
   asc,
 } from "@workspace/db";
 import { sendEmail } from "../lib/emailService.js";
-import { autoAssignForDepartment } from "../lib/autoAssign.js";
 
 const router = Router();
 
@@ -56,12 +57,10 @@ router.post("/public/request", async (req, res) => {
       !subject?.trim() ||
       !message?.trim()
     ) {
-      res
-        .status(400)
-        .json({
-          error: "Bad Request",
-          message: "name, email, subject and message are required",
-        });
+      res.status(400).json({
+        error: "Bad Request",
+        message: "name, email, subject and message are required",
+      });
       return;
     }
 
@@ -95,9 +94,10 @@ router.post("/public/request", async (req, res) => {
         .select()
         .from(departmentsTable)
         .orderBy(asc(departmentsTable.name));
-      const generalDept =
-        allDepts.find((d) => /general|support|help/i.test(d.name)) ??
-        allDepts[0];
+      const generalDept = allDepts.find(
+        (d) =>
+          d.id === classifyTeam(`${subject} ${message}`, allDepts).departmentId,
+      );
       if (generalDept) {
         resolvedDeptId = generalDept.id;
         deptName = generalDept.name;
@@ -129,9 +129,6 @@ router.post("/public/request", async (req, res) => {
 
     // Auto-assign to the department member with the fewest open tickets
     let autoAssigneeId: number | null = null;
-    if (resolvedDeptId) {
-      autoAssigneeId = await autoAssignForDepartment(resolvedDeptId);
-    }
 
     const [ticket] = await db
       .insert(ticketsTable)
@@ -152,6 +149,10 @@ router.post("/public/request", async (req, res) => {
       .returning();
 
     if (ticket) {
+      Object.assign(
+        ticket,
+        (await runAutomations(ticket.id, ["ticket_created"])) || {},
+      );
       await db.insert(ticketHistoryTable).values({
         ticketId: ticket.id,
         action: "created",
@@ -229,12 +230,10 @@ router.post("/public/request", async (req, res) => {
     });
   } catch (err) {
     console.error("Public request error", err);
-    res
-      .status(500)
-      .json({
-        error: "Internal Server Error",
-        message: "Failed to submit request. Please try again.",
-      });
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: "Failed to submit request. Please try again.",
+    });
   }
 });
 

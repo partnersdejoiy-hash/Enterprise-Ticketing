@@ -1,3 +1,5 @@
+import { classifyTeam } from "./team-classifier.js";
+import { runAutomations } from "./automation.js";
 import { ImapFlow } from "imapflow";
 import {
   db,
@@ -208,49 +210,8 @@ async function autoRouteDept(
   subject: string,
   body: string,
 ): Promise<number | undefined> {
-  try {
-    const depts = await db
-      .select({ id: departmentsTable.id, name: departmentsTable.name })
-      .from(departmentsTable);
-    const text = `${subject} ${body}`.toLowerCase();
-    const find = (rx: RegExp) => depts.find((d) => rx.test(d.name));
-    const it = find(/\bit\b|it support|information.?tech/i);
-    const hr = find(/hr|human.?resource/i);
-    const fin = find(/financ|accounts/i);
-    const legal = find(/legal/i);
-    const admin = find(/\badmin\b/i);
-    if (
-      /password|reset.*password|cannot.*login|account.*lock|vpn|laptop|computer|printer|software|hardware|network|wifi|wi-fi|it support|email.*setup|email.*access|system.*error|access.*denied|two.?factor|2fa|antivirus|malware|virus/.test(
-        text,
-      )
-    )
-      return it?.id;
-    if (
-      /wfh|work.?from.?home|leave|salary|payroll|attendance|appraisal|performance.?review|joining|onboarding|resignation|offer.?letter|increment|promotion|transfer|pf\b|epf|esic|health.?insurance|id.?card|employee.?id|document.?request/.test(
-        text,
-      )
-    )
-      return hr?.id;
-    if (
-      /invoic|payment|reimburs|expense|budget|finance|tax|audit|accounts|petty.?cash|purchase.?order|vendor.?payment/.test(
-        text,
-      )
-    )
-      return fin?.id;
-    if (
-      /legal|contract|nda|compliance|agreement|clause|policy.?review|litigation/.test(
-        text,
-      )
-    )
-      return legal?.id;
-    if (
-      /admin|office.?supply|stationary|stationery|pantry|housekeep|facility|parking|cab|transport|travel.?request|hotel.?booking|flight/.test(
-        text,
-      )
-    )
-      return admin?.id;
-  } catch {}
-  return undefined;
+  const teams = await db.select().from(departmentsTable);
+  return classifyTeam(`${subject} ${body}`, teams).departmentId ?? undefined;
 }
 
 async function pollAccount(
@@ -343,19 +304,27 @@ async function pollAccount(
               );
           }
 
-          await db.insert(ticketsTable).values({
-            ticketNumber: genTicketNum(),
-            subject,
-            description,
-            status: "open",
-            priority: "medium",
-            departmentId: departmentId ?? null,
-            createdById: creatorId,
-            raisedForName: fromName,
-            raisedForEmail: fromEmail,
-            tags: ["email-generated"],
-            slaDeadline,
-          } as any);
+          const [ticket] = await db
+            .insert(ticketsTable)
+            .values({
+              ticketNumber: genTicketNum(),
+              subject,
+              description,
+              status: "open",
+              priority: "medium",
+              departmentId: departmentId ?? null,
+              createdById: creatorId,
+              raisedForName: fromName,
+              raisedForEmail: fromEmail,
+              tags: ["email-generated"],
+              slaDeadline,
+            } as any)
+            .returning();
+          await runAutomations(
+            ticket.id,
+            ["ticket_created", "email_received"],
+            { from: fromEmail, to: cfg.user },
+          );
 
           await client.messageFlagsAdd(msg.seq, ["\\Seen"]);
           console.error(

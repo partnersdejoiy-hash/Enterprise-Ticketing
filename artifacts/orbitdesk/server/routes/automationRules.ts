@@ -1,19 +1,42 @@
+import { validateRule, runAutomations } from "../lib/automation.js";
+import { ensureAutomationPresets } from "../lib/automation-presets.js";
 import { Router } from "express";
 import {
   authMiddleware,
   AuthenticatedRequest,
   requireAdmin,
 } from "../middlewares/auth.js";
-import { db, automationRulesTable, eq } from "@workspace/db";
+import { db, automationRulesTable, ticketsTable, eq, sql } from "@workspace/db";
 
 const router = Router();
 router.use("/automation-rules", authMiddleware, requireAdmin);
+
+router.post("/automation-rules/run-unassigned", async (_req, res) => {
+  const tickets = await db
+    .select({ id: ticketsTable.id })
+    .from(ticketsTable)
+    .where(
+      sql`${ticketsTable.assigneeId} IS NULL AND ${ticketsTable.departmentId} IS NOT NULL AND ${ticketsTable.status} NOT IN ('resolved','closed') AND EXISTS(SELECT 1 FROM users u WHERE u.department_id=${ticketsTable.departmentId} AND u.is_active AND u.role IN ('agent','manager'))`,
+    )
+    .orderBy(ticketsTable.createdAt)
+    .limit(100);
+  let assigned = 0, checked = 0;
+  const deadline=Date.now()+5000;
+  for (const ticket of tickets) {
+    if(Date.now()>deadline)break;
+    checked++;
+    const result = await runAutomations(ticket.id, ["ticket_updated"]);
+    if (result?.assigneeId) assigned++;
+  }
+  res.json({ checked, assigned, limit: 100 });
+});
 
 router.get(
   "/automation-rules",
   authMiddleware,
   async (req: AuthenticatedRequest, res) => {
     try {
+      await ensureAutomationPresets();
       const rules = await db
         .select()
         .from(automationRulesTable)
@@ -46,8 +69,9 @@ router.post(
         conditionLogic,
         priority,
       } = req.body;
-      if (!name?.trim()) {
-        res.status(400).json({ error: "Rule name is required" });
+      const validation = validateRule(req.body);
+      if (validation) {
+        res.status(400).json({ error: validation });
         return;
       }
       const [rule] = await db
@@ -97,6 +121,11 @@ router.put(
         conditionLogic,
         priority,
       } = req.body;
+      const validation = validateRule(req.body);
+      if (validation) {
+        res.status(400).json({ error: validation });
+        return;
+      }
       const [updated] = await db
         .update(automationRulesTable)
         .set({
@@ -144,6 +173,19 @@ router.patch(
         updates.isActive = req.body.isActive;
       if (typeof req.body.priority === "number")
         updates.priority = req.body.priority;
+      const [existing] = await db
+        .select()
+        .from(automationRulesTable)
+        .where(eq(automationRulesTable.id, id));
+      if (!existing) {
+        res.status(404).json({ error: "Rule not found" });
+        return;
+      }
+      const validation = validateRule({ ...existing, ...updates });
+      if (validation && updates.isActive !== false) {
+        res.status(400).json({ error: validation });
+        return;
+      }
       updates.updatedAt = new Date();
 
       const [updated] = await db

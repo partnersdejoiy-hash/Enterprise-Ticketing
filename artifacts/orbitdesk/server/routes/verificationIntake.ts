@@ -1,9 +1,15 @@
+import { notifyTicket } from "../lib/ticket-notifications.js";
+import { getRoutingSettings } from "../lib/workspace-settings.js";
+import { runAutomations } from "../lib/automation.js";
 import { Router } from "express";
 import { createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { constantEqual, digest, rateLimit } from "../lib/security.js";
 import { authMiddleware, requireAdmin } from "../middlewares/auth.js";
-import { businessSiteOidcEnabled, verifyBusinessSiteIdentity } from "../lib/business-site-identity.js";
+import {
+  businessSiteOidcEnabled,
+  verifyBusinessSiteIdentity,
+} from "../lib/business-site-identity.js";
 
 const router = Router();
 const types = ["employment-verification", "background-verification"];
@@ -59,7 +65,9 @@ router.get(
       "SELECT request_type,count(*)::int as received,max(created_at) as last_received FROM orbit_intake_receipts GROUP BY request_type",
     );
     res.json({
-      configured: businessSiteOidcEnabled() || (process.env.BUSINESS_SITE_INTAKE_SECRET?.length ?? 0) >= 32,
+      configured:
+        businessSiteOidcEnabled() ||
+        (process.env.BUSINESS_SITE_INTAKE_SECRET?.length ?? 0) >= 32,
       source: "business.dejoiy.com",
       routes: [
         {
@@ -87,30 +95,42 @@ router.post("/integrations/business-site/verification", async (req, res) => {
   let authenticated = false;
   if (authorization) {
     // A failed bearer token never downgrades to another authentication method.
-    if (oidcEnabled && authorization.startsWith("Bearer ") && authorization.length <= 16384) {
+    if (
+      oidcEnabled &&
+      authorization.startsWith("Bearer ") &&
+      authorization.length <= 16384
+    ) {
       try {
         await verifyBusinessSiteIdentity(authorization.slice(7));
         authenticated = true;
       } catch (error: any) {
         // Diagnostic codes only: no token, claim values or private request body.
         console.warn("Business intake identity rejected", {
-          code: typeof error?.code === "string" ? error.code : "IDENTITY_UNAVAILABLE",
+          code:
+            typeof error?.code === "string"
+              ? error.code
+              : "IDENTITY_UNAVAILABLE",
           claim: typeof error?.claim === "string" ? error.claim : undefined,
         });
       }
     }
-  } else if (secret && secret.length >= 32 && !(
-    !/^\d{13}$/.test(timestamp) ||
-    Math.abs(Date.now() - Number(timestamp)) > 300000 ||
-    !raw ||
-    !constantEqual(
-      signature,
-      createHmac("sha256", secret)
-        .update(timestamp + ".")
-        .update(raw)
-        .digest("hex"),
+  } else if (
+    secret &&
+    secret.length >= 32 &&
+    !(
+      !/^\d{13}$/.test(timestamp) ||
+      Math.abs(Date.now() - Number(timestamp)) > 300000 ||
+      !raw ||
+      !constantEqual(
+        signature,
+        createHmac("sha256", secret)
+          .update(timestamp + ".")
+          .update(raw)
+          .digest("hex"),
+      )
     )
-  )) authenticated = true;
+  )
+    authenticated = true;
   if (!authenticated) {
     res.status(401).json({ error: "Invalid service authentication" });
     return;
@@ -138,7 +158,9 @@ router.post("/integrations/business-site/verification", async (req, res) => {
       pdf: digest(b.attachment.content),
     }),
   );
+  const routing = await getRoutingSettings();
   const client = await pool.connect();
+  let released = false;
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
@@ -151,11 +173,9 @@ router.post("/integrations/business-site/verification", async (req, res) => {
     if (existing.rowCount) {
       await client.query("COMMIT");
       if (existing.rows[0].payload_hash !== hash) {
-        res
-          .status(409)
-          .json({
-            error: "Request reference already used with different details",
-          });
+        res.status(409).json({
+          error: "Request reference already used with different details",
+        });
         return;
       }
       res.json({
@@ -167,9 +187,7 @@ router.post("/integrations/business-site/verification", async (req, res) => {
     }
     const bgv = b.verificationType === "background-verification";
     const configuredId = Number(
-      bgv
-        ? process.env.BGV_DEPARTMENT_ID
-        : process.env.EMPLOYMENT_VERIFICATION_DEPARTMENT_ID,
+      bgv ? routing.bgvDepartmentId : routing.employmentDepartmentId,
     );
     // Routing grants no new permissions. Until an existing department is explicitly configured,
     // only existing administrators can triage these sensitive website tickets.
@@ -184,7 +202,7 @@ router.post("/integrations/business-site/verification", async (req, res) => {
         : undefined;
     if (configuredId && !dept) throw new Error("Invalid configured department");
     let assigneeId: number | null = null;
-    if (dept) {
+    if (dept && routing.autoAssign) {
       await client.query("SELECT pg_advisory_xact_lock(842198,$1)", [dept.id]);
       const owner = await client.query(
         `SELECT u.id FROM users u LEFT JOIN tickets t ON t.assignee_id=u.id AND t.status NOT IN ('resolved','closed')
@@ -241,18 +259,20 @@ router.post("/integrations/business-site/verification", async (req, res) => {
       [b.requestId, hash, ticket.id, number, b.verificationType],
     );
     await client.query("COMMIT");
+    client.release();
+    released = true;
+    await runAutomations(ticket.id, ["ticket_created"]);
+    if (assigneeId) await notifyTicket(ticket.id, "assigned");
     res
       .status(201)
       .json({ success: true, ticketNumber: number, duplicate: false });
   } catch {
-    await client.query("ROLLBACK");
-    res
-      .status(503)
-      .json({
-        error: "Could not save request. Retry with the same reference.",
-      });
+    if (!released) await client.query("ROLLBACK");
+    res.status(503).json({
+      error: "Could not save request. Retry with the same reference.",
+    });
   } finally {
-    client.release();
+    if (!released) client.release();
   }
 });
 export default router;

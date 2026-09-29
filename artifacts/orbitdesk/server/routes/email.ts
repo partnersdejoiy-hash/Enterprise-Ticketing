@@ -1,3 +1,4 @@
+import { runAutomations } from "../lib/automation.js";
 import { authMiddleware, requireAdmin } from "../middlewares/auth.js";
 import { Router } from "express";
 import {
@@ -103,12 +104,10 @@ router.post("/webhooks/email", async (req, res) => {
   try {
     const parsed = parseEmailPayload(req.body);
     if (!parsed || !parsed.to) {
-      res
-        .status(400)
-        .json({
-          error: "Bad Request",
-          message: "Could not parse email payload",
-        });
+      res.status(400).json({
+        error: "Bad Request",
+        message: "Could not parse email payload",
+      });
       return;
     }
 
@@ -178,18 +177,20 @@ router.post("/webhooks/email", async (req, res) => {
         tags: route.tags,
       })
       .returning();
+    await runAutomations(ticket.id, ["ticket_created", "email_received"], {
+      from: parsed.from,
+      to: parsed.to,
+    });
 
     console.error(
       `[email-webhook] Created ticket ${ticket.ticketNumber} for ${parsed.to} from ${parsed.from}`,
     );
-    res
-      .status(201)
-      .json({
-        received: true,
-        action: "ticket_created",
-        ticketNumber: ticket.ticketNumber,
-        ticketId: ticket.id,
-      });
+    res.status(201).json({
+      received: true,
+      action: "ticket_created",
+      ticketNumber: ticket.ticketNumber,
+      ticketId: ticket.id,
+    });
   } catch (err) {
     console.error("Email webhook error", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -266,16 +267,18 @@ router.post("/webhooks/email/simulate", async (req, res) => {
         tags: [...route.tags, "simulated"],
       })
       .returning();
+    await runAutomations(ticket.id, ["ticket_created", "email_received"], {
+      from: parsed.from,
+      to: parsed.to,
+    });
 
-    res
-      .status(201)
-      .json({
-        received: true,
-        action: "ticket_created",
-        ticketNumber: ticket.ticketNumber,
-        ticketId: ticket.id,
-        department: dept?.name ?? null,
-      });
+    res.status(201).json({
+      received: true,
+      action: "ticket_created",
+      ticketNumber: ticket.ticketNumber,
+      ticketId: ticket.id,
+      department: dept?.name ?? null,
+    });
   } catch (err) {
     console.error("Email simulate error", err);
     res.status(500).json({ error: "Internal Server Error" });

@@ -1,3 +1,5 @@
+import assistantRouter from "./assistant.js";
+import workspaceSettingsRouter from "./workspaceSettings.js";
 import { Router } from "express";
 import operationsRouter from "./operations.js";
 import automationRulesRouter from "./automationRules.js";
@@ -37,4 +39,6 @@ router.use(emailAccountsRouter);
 router.use("/webhooks", webhooksRouter);
 router.use(cronRouter);
 
+router.use(workspaceSettingsRouter);
+router.use(assistantRouter);
 export default router;

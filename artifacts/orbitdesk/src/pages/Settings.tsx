@@ -1,3 +1,4 @@
+import {PersonalSettings,RoutingSettingsPanel} from "@/components/WorkspaceSettings";
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuthStore } from "@/lib/auth";
@@ -101,9 +102,8 @@ function RolePermissionCard({
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    setPerms(initial);
-    setDirty(false);
-  }, [initial]);
+    if (!dirty) setPerms(initial);
+  }, [initial, dirty]);
 
   const toggle = (key: keyof RolePermissions, val: boolean) => {
     setPerms((prev) => ({ ...prev, [key]: val }));
@@ -1481,6 +1481,7 @@ function EmailAccountsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 // ─── Main Settings page ────────────────────────────────────────────────────────
 export default function Settings() {
+  const [activeTab,setActiveTab]=useState("profile");
   const { user } = useAuthStore();
   const { toast } = useToast();
 
@@ -1537,7 +1538,7 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground mt-0.5">Manage your account and system preferences</p>
         </div>
 
-        <Tabs defaultValue="profile">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 flex-wrap h-auto gap-1">
             <TabsTrigger value="profile" className="gap-1.5">
               <User className="h-3.5 w-3.5" /> Profile
@@ -1573,96 +1574,12 @@ export default function Settings() {
             )}
           </TabsList>
 
-          {/* ── Profile ── */}
-          <TabsContent value="profile">
-            <div className="space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Profile Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
-                        {user?.name?.charAt(0).toUpperCase() ?? "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-semibold text-foreground">{user?.name}</p>
-                      <p className="text-sm text-muted-foreground">{user?.email}</p>
-                      <Badge variant="outline" className="mt-1 text-xs capitalize">{user?.role?.replace(/_/g, " ")}</Badge>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Full Name</Label>
-                      <Input defaultValue={user?.name} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Email</Label>
-                      <Input type="email" defaultValue={user?.email} />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button size="sm">Save Changes</Button>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-muted-foreground" /> Security
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Current Password</Label>
-                      <Input type="password" placeholder="••••••••" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>New Password</Label>
-                      <Input type="password" placeholder="••••••••" />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm">Update Password</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* ── Notifications ── */}
-          <TabsContent value="notifications">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Notification Preferences</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {[
-                  { label: "Ticket assigned to me", desc: "Get notified when a ticket is assigned to you" },
-                  { label: "Ticket updates", desc: "Status changes and updates on your tickets" },
-                  { label: "New comments", desc: "When someone replies on your tickets" },
-                  { label: "SLA warnings", desc: "Alerts when SLA deadline is approaching" },
-                  { label: "Daily digest", desc: "Daily summary of open and pending tickets" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                    <Switch defaultChecked={i < 3} />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <TabsContent value="profile" forceMount className="data-[state=inactive]:hidden"><PersonalSettings /></TabsContent>
+          <TabsContent value="notifications" forceMount className="data-[state=inactive]:hidden"><PersonalSettings notificationsOnly /></TabsContent>
 
           {/* ── Role Permissions ── */}
           {canManagePerms && (
-            <TabsContent value="permissions">
+            <TabsContent value="permissions" forceMount className="data-[state=inactive]:hidden">
               <div className="space-y-4">
                 {/* Header info */}
                 <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
@@ -1715,21 +1632,21 @@ export default function Settings() {
 
           {/* ── Email Accounts ── */}
           {canAdmin && (
-            <TabsContent value="email-accounts">
+            <TabsContent value="email-accounts" forceMount className="data-[state=inactive]:hidden">
               <EmailAccountsSection isSuperAdmin={isSuperAdmin} />
             </TabsContent>
           )}
 
           {/* ── Webhooks ── */}
           {isSuperAdmin && (
-            <TabsContent value="webhooks">
+            <TabsContent value="webhooks" forceMount className="data-[state=inactive]:hidden">
               <WebhooksSection isSuperAdmin={isSuperAdmin} />
             </TabsContent>
           )}
 
           {/* ── Email Integration ── */}
           {canAdmin && (
-            <TabsContent value="email-integration">
+            <TabsContent value="email-integration" forceMount className="data-[state=inactive]:hidden">
               <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
@@ -1848,7 +1765,7 @@ export default function Settings() {
 
           {/* ── Email Notifications ── */}
           {canAdmin && (
-            <TabsContent value="email-notifications">
+            <TabsContent value="email-notifications" forceMount className="data-[state=inactive]:hidden">
               <div className="space-y-4">
                 <EmailConfigSection isSuperAdmin={user?.role === "super_admin"} />
                 <ImapConfigSection isSuperAdmin={user?.role === "super_admin"} />
@@ -1858,7 +1775,8 @@ export default function Settings() {
 
           {/* ── System ── */}
           {canAdmin && (
-            <TabsContent value="system">
+            <TabsContent value="system" forceMount className="data-[state=inactive]:hidden">
+              <RoutingSettingsPanel />
               <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
@@ -1868,7 +1786,7 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground mt-0.5">Configure outbound email from the <strong>Email Notifications</strong> tab above.</p>
                   </CardHeader>
                   <CardContent>
-                    <Button variant="outline" size="sm" onClick={() => { const el = document.querySelector('[data-value="email-notifications"]') as HTMLElement; el?.click(); }}>
+                    <Button variant="outline" size="sm" onClick={() => { setActiveTab("email-notifications"); }}>
                       Go to Email Notifications
                     </Button>
                   </CardContent>
