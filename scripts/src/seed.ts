@@ -1,6 +1,6 @@
 // Explicit first-run bootstrap. Never inserts sample people, tickets or known passwords.
 import { db, pool, usersTable, eq } from "@workspace/db";
-import { hashPassword } from "../../../artifacts/orbitdesk/server/lib/security.js";
+import { hashPassword } from "../../artifacts/orbitdesk/server/lib/security.js";
 const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
 const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
 if (

@@ -1,6 +1,6 @@
 // Run manually on the authorised server. Does not create accounts or change roles.
 import { db, pool, usersTable, eq } from "@workspace/db";
-import { hashPassword } from "../../../artifacts/orbitdesk/server/lib/security.js";
+import { hashPassword } from "../../artifacts/orbitdesk/server/lib/security.js";
 const email = process.env.RESET_USER_EMAIL?.trim().toLowerCase();
 const password = process.env.RESET_USER_PASSWORD;
 if (!email || !password || password.length < 16)
