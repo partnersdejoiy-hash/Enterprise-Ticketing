@@ -48,7 +48,7 @@ For a known existing account, an authorised server operator can provide `RESET_U
 
 ## Connect business.dejoiy.com
 
-The DEJOIY Vercel production projects use existing Vercel OIDC workload identity; no shared secret needs to be copied. The receiver pins the DEJOIY team ID, `dejoiy-site` project ID, issuer, audience, subject and production environment in `server/lib/business-site-identity.ts`. It verifies RS256 signatures against Vercel's fixed JWKS URL, expiry, issued-at and not-before. Preview projects and other teams/projects are rejected. This grants only intake submission, never staff or ticket-reading access. Tokens stay server-side and are never logged. The sender only sends this identity to `https://orbitdesk-dejoiy.vercel.app` and refuses redirects.
+The DEJOIY Vercel production projects use existing Vercel OIDC workload identity; no shared secret needs to be copied. The receiver pins the DEJOIY team ID, `dejoiy-site` project ID, issuer, audience, subject and production environment in `server/lib/business-site-identity.ts`. It verifies RS256 signatures against Vercel's fixed JWKS URL, expiry, issued-at and not-before. Preview projects and other teams/projects are rejected. This grants only intake submission, never staff or ticket-reading access. Tokens stay server-side and are never logged. The sender only sends this identity to `https://orbitdesk.dejoiy.com` and refuses redirects.
 
 On another host, configure the shared-secret alternative below. An invalid bearer token never falls back to HMAC.
 
