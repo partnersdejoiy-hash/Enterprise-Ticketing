@@ -1,3 +1,4 @@
+import { scheduleAiTicket } from "./ai-workforce.js";
 import { notifyTicket } from "./ticket-notifications.js";
 import { getRoutingSettings } from "./workspace-settings.js";
 import { ensureAutomationPresets } from "./automation-presets.js";
@@ -322,5 +323,7 @@ export async function runAutomations(
     // The originating ticket remains saved. Do not turn a post-save failure into a duplicate-producing retry.
     console.error("[automation] Execution failed", { ticketId });
     return undefined;
+  } finally {
+    void scheduleAiTicket(ticketId);
   }
 }

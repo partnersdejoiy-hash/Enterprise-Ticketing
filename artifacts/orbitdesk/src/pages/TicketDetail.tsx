@@ -1,3 +1,4 @@
+import { TicketAiDrafts } from "@/components/AiWorkforce";
 import { TicketPeople } from "@/components/TicketPeople";
 import { useDirectory } from "@/lib/directory";
 import React, { useState } from "react";
@@ -338,6 +339,7 @@ export default function TicketDetail() {
               </div>
             </div>
 
+            {canHandle && <TicketAiDrafts ticketId={ticket.id} />}
             {/* Conversation / History tabs */}
             <div className="bg-card border border-border rounded-lg overflow-hidden">
               <div className="flex border-b border-border">

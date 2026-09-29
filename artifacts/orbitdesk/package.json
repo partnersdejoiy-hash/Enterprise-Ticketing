@@ -78,8 +78,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@mlc-ai/web-llm": "0.2.85",
     "@types/nodemailer": "^8.0.0",
+    "@vercel/functions": "3.9.9",
     "@workspace/db": "workspace:*",
     "concurrently": "^9.2.1",
     "cors": "^2.8.6",

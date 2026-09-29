@@ -20,5 +20,6 @@ await pool.query(
     "utf8",
   ),
 );
+await pool.query(await readFile(new URL("../../migrations/003_ai_workforce.sql", import.meta.url), "utf8"));
 console.log("Database migrations applied.");
 await pool.end();

@@ -1,3 +1,4 @@
+import aiWorkforceRouter from "./aiWorkforce.js";
 import assistantRouter from "./assistant.js";
 import workspaceSettingsRouter from "./workspaceSettings.js";
 import { Router } from "express";
@@ -41,4 +42,5 @@ router.use(cronRouter);
 
 router.use(workspaceSettingsRouter);
 router.use(assistantRouter);
+router.use(aiWorkforceRouter);
 export default router;

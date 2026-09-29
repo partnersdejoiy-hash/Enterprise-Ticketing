@@ -1,3 +1,4 @@
+import { AiWorkforcePanel } from "@/components/AiWorkforce";
 import {PersonalSettings,RoutingSettingsPanel} from "@/components/WorkspaceSettings";
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1567,6 +1568,7 @@ export default function Settings() {
                 <TabsTrigger value="email-notifications" className="gap-1.5">
                   <Send className="h-3.5 w-3.5" /> Email Notifications
                 </TabsTrigger>
+                <TabsTrigger value="ai-workforce">AI workforce</TabsTrigger>
                 <TabsTrigger value="system" className="gap-1.5">
                   <SettingsIcon className="h-3.5 w-3.5" /> System
                 </TabsTrigger>
@@ -1574,6 +1576,7 @@ export default function Settings() {
             )}
           </TabsList>
 
+          {canAdmin && <TabsContent value="ai-workforce" forceMount className="data-[state=inactive]:hidden"><AiWorkforcePanel /></TabsContent>}
           <TabsContent value="profile" forceMount className="data-[state=inactive]:hidden"><PersonalSettings /></TabsContent>
           <TabsContent value="notifications" forceMount className="data-[state=inactive]:hidden"><PersonalSettings notificationsOnly /></TabsContent>
 
