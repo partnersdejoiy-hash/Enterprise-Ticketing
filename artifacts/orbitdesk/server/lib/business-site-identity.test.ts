@@ -22,8 +22,10 @@ test("only the exact signed DEJOIY production workload can submit intake", async
     { owner_id: "team_other" }, { project_id: "prj_other" },
     { owner: "other" }, { project: "other" }, { environment: "preview" },
     { exp: now - 60 }, { nbf: now + 60 }, { iat: now - 7200 },
-    { exp: now + 7200 }, { exp: undefined }, { project_id: undefined },
+    { iat: now - 3610, exp: now + 7200 }, { exp: undefined }, { project_id: undefined },
   ]) await assert.rejects(verifyBusinessSiteIdentity(await sign(changes), keySet));
+  // Longer issuer lifetime cannot bypass our independently enforced age cap.
+  await verifyBusinessSiteIdentity(await sign({ exp: now + 7200 }), keySet);
   const forged = await generateKeyPair("RS256");
   await assert.rejects(verifyBusinessSiteIdentity(await new SignJWT(claims)
     .setProtectedHeader({ alg: "RS256", kid: "test-only" }).sign(forged.privateKey), keySet));

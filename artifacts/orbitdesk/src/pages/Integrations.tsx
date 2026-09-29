@@ -62,7 +62,7 @@ export default function Integrations() {
                   <p className="eyebrow">WEBSITE INTAKE</p>
                   <h2>
                     {query.data?.configured
-                      ? "Intake key configured"
+                      ? "Secure intake configured"
                       : "Setup required"}
                   </h2>
                 </div>

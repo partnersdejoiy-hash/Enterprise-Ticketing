@@ -31,6 +31,7 @@ export async function verifyBusinessSiteIdentity(token: string, keySet: JWTVerif
     environment: "production", owner: "dejoiy", project: "dejoiy-site" })) {
     if (payload[claim] !== value) throw Object.assign(new Error("Untrusted workload identity"), { code: "IDENTITY_CLAIM_MISMATCH", claim });
   }
-  if (typeof payload.exp !== "number" || typeof payload.iat !== "number" || payload.exp - payload.iat > 3600)
-    throw Object.assign(new Error("Invalid identity lifetime"), { code: "IDENTITY_LIFETIME" });
+  // jwtVerify checks exp and caps usable token age at one hour. Do not assume
+  // Vercel always issues exp exactly 3600 seconds after iat; runtime tokens may
+  // carry a longer issuer lifetime without extending our one-hour acceptance.
 }
