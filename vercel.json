@@ -1,23 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "pnpm --filter @workspace/orbitdesk build",
+  "buildCommand": "pnpm build:vercel",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "artifacts/orbitdesk/dist/public",
-  "functions": {
-    "api/index.ts": {
-      "maxDuration": 30
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index.ts"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
   "env": {
     "NODE_ENV": "production"
   }

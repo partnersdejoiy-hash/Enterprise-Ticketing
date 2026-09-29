@@ -10,6 +10,8 @@
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm --filter @workspace/orbitdesk build && pnpm --filter @workspace/api-server build",
+    "build:vercel": "pnpm --filter @workspace/orbitdesk build && node scripts/build-vercel.mjs",
+    "test:vercel": "node --test tests/vercel-bundle.test.mjs",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm --filter @workspace/orbitdesk typecheck && tsc -p artifacts/orbitdesk/tsconfig.server.json --noEmit",
     "db:migrate": "node --import tsx scripts/src/migrate.ts",

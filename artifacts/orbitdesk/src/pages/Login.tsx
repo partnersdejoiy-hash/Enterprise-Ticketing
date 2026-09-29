@@ -37,7 +37,9 @@ export default function Login() {
           body: JSON.stringify({ email, password }),
         },
       );
-      const result = await res.json();
+      const result = await res.json().catch(() => null);
+      if (!result || typeof result !== "object")
+        throw new Error("Sign-in service is temporarily unavailable. Please try again later.");
       if (!res.ok)
         throw new Error(
           result.message ||
