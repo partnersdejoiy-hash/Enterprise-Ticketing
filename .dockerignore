@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.env
+.env.*
+test-results
+attached_assets

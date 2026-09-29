@@ -1,17 +1,48 @@
+import { requireAdmin } from "../middlewares/auth.js";
 import { Router } from "express";
-import { db, departmentsTable, usersTable, ticketsTable, eq, sql, and } from "@workspace/db";
+import {
+  db,
+  departmentsTable,
+  usersTable,
+  ticketsTable,
+  eq,
+  sql,
+  and,
+} from "@workspace/db";
 import { authMiddleware } from "../middlewares/auth.js";
 
 const router = Router();
+router.use("/departments", authMiddleware, (req, res, next) =>
+  req.method === "GET" ? next() : requireAdmin(req, res, next),
+);
 
 router.get("/departments", authMiddleware, async (req, res) => {
   try {
-    const departments = await db.select().from(departmentsTable).orderBy(departmentsTable.name);
+    const departments = await db
+      .select()
+      .from(departmentsTable)
+      .orderBy(departmentsTable.name);
 
     const result = await Promise.all(
       departments.map(async (dept) => {
-        const [agentRow] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable).where(and(eq(usersTable.departmentId, dept.id), eq(usersTable.isActive, true)));
-        const [ticketRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ticketsTable).where(and(eq(ticketsTable.departmentId, dept.id), sql`${ticketsTable.status} NOT IN ('resolved', 'closed')`));
+        const [agentRow] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.departmentId, dept.id),
+              eq(usersTable.isActive, true),
+            ),
+          );
+        const [ticketRow] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(ticketsTable)
+          .where(
+            and(
+              eq(ticketsTable.departmentId, dept.id),
+              sql`${ticketsTable.status} NOT IN ('resolved', 'closed')`,
+            ),
+          );
 
         return {
           id: dept.id,
@@ -25,7 +56,7 @@ router.get("/departments", authMiddleware, async (req, res) => {
           openTicketCount: ticketRow?.count ?? 0,
           createdAt: dept.createdAt.toISOString(),
         };
-      })
+      }),
     );
 
     res.json(result);
@@ -37,11 +68,38 @@ router.get("/departments", authMiddleware, async (req, res) => {
 
 router.post("/departments", authMiddleware, async (req, res) => {
   try {
-    const { name, description, color, icon, slaResponseHours = 4, slaResolutionHours = 24 } = req.body;
-    if (!name) { res.status(400).json({ error: "Bad Request", message: "Name required" }); return; }
+    const {
+      name,
+      description,
+      color,
+      icon,
+      slaResponseHours = 4,
+      slaResolutionHours = 24,
+    } = req.body;
+    if (!name) {
+      res.status(400).json({ error: "Bad Request", message: "Name required" });
+      return;
+    }
 
-    const [dept] = await db.insert(departmentsTable).values({ name, description, color, icon, slaResponseHours, slaResolutionHours }).returning();
-    res.status(201).json({ ...dept, agentCount: 0, openTicketCount: 0, createdAt: dept.createdAt.toISOString() });
+    const [dept] = await db
+      .insert(departmentsTable)
+      .values({
+        name,
+        description,
+        color,
+        icon,
+        slaResponseHours,
+        slaResolutionHours,
+      })
+      .returning();
+    res
+      .status(201)
+      .json({
+        ...dept,
+        agentCount: 0,
+        openTicketCount: 0,
+        createdAt: dept.createdAt.toISOString(),
+      });
   } catch (err) {
     console.error("Create department error", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -50,14 +108,42 @@ router.post("/departments", authMiddleware, async (req, res) => {
 
 router.get("/departments/:departmentId", authMiddleware, async (req, res) => {
   try {
-    const deptId = parseInt(req.params.departmentId, 10);
-    const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, deptId)).limit(1);
-    if (!dept) { res.status(404).json({ error: "Not Found" }); return; }
+    const deptId = parseInt(String(req.params.departmentId), 10);
+    const [dept] = await db
+      .select()
+      .from(departmentsTable)
+      .where(eq(departmentsTable.id, deptId))
+      .limit(1);
+    if (!dept) {
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
 
-    const [agentRow] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable).where(and(eq(usersTable.departmentId, dept.id), eq(usersTable.isActive, true)));
-    const [ticketRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ticketsTable).where(and(eq(ticketsTable.departmentId, dept.id), sql`${ticketsTable.status} NOT IN ('resolved', 'closed')`));
+    const [agentRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(usersTable)
+      .where(
+        and(
+          eq(usersTable.departmentId, dept.id),
+          eq(usersTable.isActive, true),
+        ),
+      );
+    const [ticketRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(ticketsTable)
+      .where(
+        and(
+          eq(ticketsTable.departmentId, dept.id),
+          sql`${ticketsTable.status} NOT IN ('resolved', 'closed')`,
+        ),
+      );
 
-    res.json({ ...dept, agentCount: agentRow?.count ?? 0, openTicketCount: ticketRow?.count ?? 0, createdAt: dept.createdAt.toISOString() });
+    res.json({
+      ...dept,
+      agentCount: agentRow?.count ?? 0,
+      openTicketCount: ticketRow?.count ?? 0,
+      createdAt: dept.createdAt.toISOString(),
+    });
   } catch (err) {
     console.error("Get department error", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -68,7 +154,9 @@ router.post("/departments/bulk", authMiddleware, async (req, res) => {
   try {
     const { rows } = req.body as { rows: Array<Record<string, string>> };
     if (!Array.isArray(rows) || rows.length === 0) {
-      res.status(400).json({ error: "Bad Request", message: "rows array required" });
+      res
+        .status(400)
+        .json({ error: "Bad Request", message: "rows array required" });
       return;
     }
 
@@ -78,17 +166,27 @@ router.post("/departments/bulk", authMiddleware, async (req, res) => {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const name = row.name?.trim();
-      if (!name) { errors.push({ row: i + 1, error: "name is required" }); continue; }
+      if (!name) {
+        errors.push({ row: i + 1, error: "name is required" });
+        continue;
+      }
 
       const slaResponseHours = parseInt(row.sla_response_hours ?? "4", 10) || 4;
-      const slaResolutionHours = parseInt(row.sla_resolution_hours ?? "24", 10) || 24;
+      const slaResolutionHours =
+        parseInt(row.sla_resolution_hours ?? "24", 10) || 24;
       const color = row.color?.trim() || "#3B82F6";
 
       try {
-        const [dept] = await db.insert(departmentsTable).values({
-          name, description: row.description?.trim() ?? null, color,
-          slaResponseHours, slaResolutionHours,
-        }).returning();
+        const [dept] = await db
+          .insert(departmentsTable)
+          .values({
+            name,
+            description: row.description?.trim() ?? null,
+            color,
+            slaResponseHours,
+            slaResolutionHours,
+          })
+          .returning();
         created.push(dept.id);
       } catch (e) {
         errors.push({ row: i + 1, error: "Insert failed" });
@@ -102,25 +200,46 @@ router.post("/departments/bulk", authMiddleware, async (req, res) => {
   }
 });
 
-router.delete("/departments/:departmentId", authMiddleware, async (req: any, res) => {
-  try {
-    const callerRole = req.user?.role;
-    if (callerRole !== "super_admin" && callerRole !== "admin") {
-      res.status(403).json({ error: "Forbidden", message: "Only Super Admins and Admins can delete departments" });
-      return;
+router.delete(
+  "/departments/:departmentId",
+  authMiddleware,
+  async (req: any, res) => {
+    try {
+      const callerRole = req.user?.role;
+      if (callerRole !== "super_admin" && callerRole !== "admin") {
+        res
+          .status(403)
+          .json({
+            error: "Forbidden",
+            message: "Only Super Admins and Admins can delete departments",
+          });
+        return;
+      }
+      const deptId = parseInt(String(req.params.departmentId), 10);
+      // Null out tickets assigned to this department instead of blocking
+      await db
+        .update(ticketsTable)
+        .set({ departmentId: null })
+        .where(eq(ticketsTable.departmentId, deptId));
+      // Unlink users from this department
+      await db
+        .update(usersTable)
+        .set({ departmentId: null })
+        .where(eq(usersTable.departmentId, deptId));
+      const deleted = await db
+        .delete(departmentsTable)
+        .where(eq(departmentsTable.id, deptId))
+        .returning();
+      if (!deleted.length) {
+        res.status(404).json({ error: "Not Found" });
+        return;
+      }
+      res.status(204).end();
+    } catch (err) {
+      console.error("Delete department error", err);
+      res.status(500).json({ error: "Internal Server Error" });
     }
-    const deptId = parseInt(req.params.departmentId, 10);
-    // Null out tickets assigned to this department instead of blocking
-    await db.update(ticketsTable).set({ departmentId: null }).where(eq(ticketsTable.departmentId, deptId));
-    // Unlink users from this department
-    await db.update(usersTable).set({ departmentId: null }).where(eq(usersTable.departmentId, deptId));
-    const deleted = await db.delete(departmentsTable).where(eq(departmentsTable.id, deptId)).returning();
-    if (!deleted.length) { res.status(404).json({ error: "Not Found" }); return; }
-    res.status(204).end();
-  } catch (err) {
-    console.error("Delete department error", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
+  },
+);
 
 export default router;

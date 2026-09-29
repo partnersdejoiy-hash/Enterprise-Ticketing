@@ -10,9 +10,12 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: localStorage.getItem("auth_token"),
-  user: localStorage.getItem("auth_user") 
-    ? JSON.parse(localStorage.getItem("auth_user") as string) 
+  token:
+    localStorage.getItem("auth_token") === "cookie-session"
+      ? "cookie-session"
+      : null,
+  user: localStorage.getItem("auth_user")
+    ? JSON.parse(localStorage.getItem("auth_user") as string)
     : null,
   setAuth: (token, user) => {
     localStorage.setItem("auth_token", token);

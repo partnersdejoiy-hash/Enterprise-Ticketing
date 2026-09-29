@@ -17,17 +17,13 @@ const router = Router();
 router.get("/cron/imap-poll", async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret) {
-    const authHeader = req.headers.authorization ?? "";
-    const querySecret = (req.query.secret as string) ?? "";
-    const provided = authHeader.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : querySecret;
-
-    if (provided !== cronSecret) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+  if (
+    !cronSecret ||
+    cronSecret.length < 32 ||
+    req.headers.authorization !== `Bearer ${cronSecret}`
+  ) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
 
   try {

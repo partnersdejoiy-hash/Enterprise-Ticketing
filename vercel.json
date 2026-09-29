@@ -1,22 +1,21 @@
 {
   "version": 2,
-  "buildCommand": "pnpm install && pnpm --filter @workspace/orbitdesk run build",
+  "buildCommand": "pnpm --filter @workspace/orbitdesk build",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "artifacts/orbitdesk/dist/public",
   "functions": {
     "api/index.ts": {
-      "runtime": "@vercel/node@3",
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index.ts" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "crons": [
     {
-      "path": "/api/cron/imap-poll",
-      "schedule": "*/2 * * * *"
+      "source": "/api/:path*",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {

@@ -47,3 +47,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local secrets and isolated verification artifacts
+.env
+.env.*
+!.env.example
+test-results/

@@ -1,5 +1,15 @@
+import { rateLimit, escapeHtml } from "../lib/security.js";
+import { randomBytes } from "node:crypto";
 import { Router } from "express";
-import { db, ticketsTable, departmentsTable, usersTable, ticketHistoryTable, eq, asc } from "@workspace/db";
+import {
+  db,
+  ticketsTable,
+  departmentsTable,
+  usersTable,
+  ticketHistoryTable,
+  eq,
+  asc,
+} from "@workspace/db";
 import { sendEmail } from "../lib/emailService.js";
 import { autoAssignForDepartment } from "../lib/autoAssign.js";
 
@@ -20,16 +30,46 @@ router.get("/public/departments", async (_req, res) => {
 
 router.post("/public/request", async (req, res) => {
   try {
-    const { name, email, phone, organization, departmentId, subject, message } = req.body;
+    if (!(await rateLimit(`public:${req.ip}`, 5, 900))) {
+      res.status(429).json({ error: "Please try again later." });
+      return;
+    }
+    const { name, email, phone, organization, departmentId, subject, message } =
+      req.body;
+    if (
+      [name, email, subject, message].some((v) => typeof v !== "string") ||
+      String(name).length > 150 ||
+      String(email).length > 254 ||
+      String(subject).length > 250 ||
+      String(message).length > 4000 ||
+      (phone && (typeof phone !== "string" || phone.length > 50)) ||
+      (organization &&
+        (typeof organization !== "string" || organization.length > 150))
+    ) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
 
-    if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
-      res.status(400).json({ error: "Bad Request", message: "name, email, subject and message are required" });
+    if (
+      !name?.trim() ||
+      !email?.trim() ||
+      !subject?.trim() ||
+      !message?.trim()
+    ) {
+      res
+        .status(400)
+        .json({
+          error: "Bad Request",
+          message: "name, email, subject and message are required",
+        });
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      res.status(400).json({ error: "Bad Request", message: "Invalid email address" });
+      res
+        .status(400)
+        .json({ error: "Bad Request", message: "Invalid email address" });
       return;
     }
 
@@ -46,15 +86,24 @@ router.post("/public/request", async (req, res) => {
       if (dept) {
         resolvedDeptId = dept.id;
         deptName = dept.name;
-        slaDeadline = new Date(Date.now() + dept.slaResolutionHours * 3600 * 1000);
+        slaDeadline = new Date(
+          Date.now() + dept.slaResolutionHours * 3600 * 1000,
+        );
       }
     } else {
-      const allDepts = await db.select().from(departmentsTable).orderBy(asc(departmentsTable.name));
-      const generalDept = allDepts.find(d => /general|support|help/i.test(d.name)) ?? allDepts[0];
+      const allDepts = await db
+        .select()
+        .from(departmentsTable)
+        .orderBy(asc(departmentsTable.name));
+      const generalDept =
+        allDepts.find((d) => /general|support|help/i.test(d.name)) ??
+        allDepts[0];
       if (generalDept) {
         resolvedDeptId = generalDept.id;
         deptName = generalDept.name;
-        slaDeadline = new Date(Date.now() + generalDept.slaResolutionHours * 3600 * 1000);
+        slaDeadline = new Date(
+          Date.now() + generalDept.slaResolutionHours * 3600 * 1000,
+        );
       }
     }
 
@@ -63,9 +112,9 @@ router.post("/public/request", async (req, res) => {
       .from(usersTable)
       .where(eq(usersTable.email, "admin@dejoiy.com"))
       .limit(1);
-    const createdById = systemUser?.id ?? 1;
+    const createdById = 0;
 
-    const ticketNumber = `DJ-${Math.floor(Math.random() * 900000) + 100000}`;
+    const ticketNumber = `DJ-${randomBytes(8).toString("hex").toUpperCase()}`;
 
     const description = [
       `Submitted by: ${name}${organization ? ` (${organization})` : ""}`,
@@ -74,7 +123,9 @@ router.post("/public/request", async (req, res) => {
       `Department: ${deptName}`,
       "",
       message,
-    ].filter(v => v !== undefined && v !== null && v !== "").join("\n");
+    ]
+      .filter((v) => v !== undefined && v !== null && v !== "")
+      .join("\n");
 
     // Auto-assign to the department member with the fewest open tickets
     let autoAssigneeId: number | null = null;
@@ -82,20 +133,23 @@ router.post("/public/request", async (req, res) => {
       autoAssigneeId = await autoAssignForDepartment(resolvedDeptId);
     }
 
-    const [ticket] = await db.insert(ticketsTable).values({
-      ticketNumber,
-      subject: subject.trim(),
-      description,
-      priority: "medium" as const,
-      status: autoAssigneeId ? "assigned" : "open",
-      departmentId: resolvedDeptId,
-      assigneeId: autoAssigneeId,
-      createdById,
-      raisedForName: name.trim(),
-      raisedForEmail: email.trim().toLowerCase(),
-      tags: ["web-request"],
-      slaDeadline,
-    } as any).returning();
+    const [ticket] = await db
+      .insert(ticketsTable)
+      .values({
+        ticketNumber,
+        subject: subject.trim(),
+        description,
+        priority: "medium" as const,
+        status: autoAssigneeId ? "assigned" : "open",
+        departmentId: resolvedDeptId,
+        assigneeId: autoAssigneeId,
+        createdById,
+        raisedForName: name.trim(),
+        raisedForEmail: email.trim().toLowerCase(),
+        tags: ["web-request"],
+        slaDeadline,
+      } as any)
+      .returning();
 
     if (ticket) {
       await db.insert(ticketHistoryTable).values({
@@ -134,7 +188,7 @@ router.post("/public/request", async (req, res) => {
     <p>OrbitDesk by Dejoiy</p>
   </div>
   <div class="body">
-    <p style="color:#334155;font-size:15px;">Hi <strong>${name}</strong>,</p>
+    <p style="color:#334155;font-size:15px;">Hi <strong>${escapeHtml(name)}</strong>,</p>
     <p style="color:#64748b;font-size:14px;line-height:1.6;">
       We've received your request and created a ticket. Our team will review it and get back to you shortly.
     </p>
@@ -142,11 +196,11 @@ router.post("/public/request", async (req, res) => {
       <div class="label">Your Ticket Number</div>
       <div class="number">${ticketNumber}</div>
     </div>
-    <div class="detail"><span class="key">Subject</span><span class="val">${subject}</span></div>
-    <div class="detail"><span class="key">Department</span><span class="val">${deptName}</span></div>
+    <div class="detail"><span class="key">Subject</span><span class="val">${escapeHtml(subject)}</span></div>
+    <div class="detail"><span class="key">Department</span><span class="val">${escapeHtml(deptName)}</span></div>
     <div class="detail"><span class="key">Status</span><span class="val">Open — Pending Review</span></div>
     <p style="color:#64748b;font-size:13px;margin-top:20px;">
-      Please keep this email for reference. Our team will contact you at <strong>${email}</strong> with updates.
+      Please keep this email for reference. Our team will contact you at <strong>${escapeHtml(email)}</strong> with updates.
     </p>
   </div>
   <div class="footer">
@@ -157,16 +211,30 @@ router.post("/public/request", async (req, res) => {
 </body>
 </html>`;
 
-    await sendEmail(email.trim(), `[OrbitDesk] Request Received — ${ticketNumber}`, confirmHtml);
+    let notificationAccepted = false;
+    try {
+      await sendEmail(
+        email.trim(),
+        `[OrbitDesk] Request Received — ${ticketNumber}`,
+        confirmHtml,
+      );
+      notificationAccepted = true;
+    } catch {}
 
     res.status(201).json({
       success: true,
       ticketNumber,
-      message: "Your request has been submitted. A confirmation email has been sent.",
+      message: "Your ticket is saved. Keep the ticket number for reference.",
+      notificationAccepted,
     });
   } catch (err) {
     console.error("Public request error", err);
-    res.status(500).json({ error: "Internal Server Error", message: "Failed to submit request. Please try again." });
+    res
+      .status(500)
+      .json({
+        error: "Internal Server Error",
+        message: "Failed to submit request. Please try again.",
+      });
   }
 });
 

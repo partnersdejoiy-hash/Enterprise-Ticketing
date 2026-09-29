@@ -1,24 +1,29 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
-import NotFound from "@/pages/not-found";
+const NotFound = lazy(() => import("@/pages/not-found"));
 import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import Tickets from "@/pages/Tickets";
-import CreateTicket from "@/pages/CreateTicket";
-import TicketDetail from "@/pages/TicketDetail";
-import Departments from "@/pages/Departments";
-import Users from "@/pages/Users";
-import Settings from "@/pages/Settings";
-import Documents from "@/pages/Documents";
-import Training from "@/pages/Training";
-import AutomationRules from "@/pages/AutomationRules";
-import EmploymentVerification from "@/pages/EmploymentVerification";
-import BackgroundVerification from "@/pages/BackgroundVerification";
-import PublicRequest from "@/pages/PublicRequest";
+const ChangePassword = lazy(() => import("@/pages/ChangePassword"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Tickets = lazy(() => import("@/pages/Tickets"));
+const CreateTicket = lazy(() => import("@/pages/CreateTicket"));
+const TicketDetail = lazy(() => import("@/pages/TicketDetail"));
+const Departments = lazy(() => import("@/pages/Departments"));
+const Users = lazy(() => import("@/pages/Users"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Documents = lazy(() => import("@/pages/Documents"));
+const Training = lazy(() => import("@/pages/Training"));
+const AutomationRules = lazy(() => import("@/pages/AutomationRules"));
+const EmploymentVerification = lazy(
+  () => import("@/pages/EmploymentVerification"),
+);
+const BackgroundVerification = lazy(
+  () => import("@/pages/BackgroundVerification"),
+);
+const PublicRequest = lazy(() => import("@/pages/PublicRequest"));
 import { useAuthStore } from "@/lib/auth";
 
 setAuthTokenGetter(() => {
@@ -36,8 +41,9 @@ const queryClient = new QueryClient({
 });
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { token } = useAuthStore();
-  const [, setLocation] = useLocation();
+  const { token, user, logout, updateUser } = useAuthStore();
+  const [checked, setChecked] = useState(false);
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
     if (!token) {
@@ -45,49 +51,117 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [token, setLocation]);
 
-  if (!token) return null;
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then(async (r) => {
+        if (!r.ok) {
+          logout();
+          return;
+        }
+        const user = await r.json();
+        if (active) {
+          updateUser(user);
+          setChecked(true);
+          if (user.mustChangePassword && location !== "/change-password")
+            setLocation("/change-password");
+        }
+      })
+      .catch(() => {
+        if (active) {
+          logout();
+          setLocation("/");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
+  if (
+    !token ||
+    !checked ||
+    (user?.mustChangePassword && location !== "/change-password")
+  )
+    return null;
   return <>{children}</>;
 }
 
+const Integrations = lazy(() => import("@/pages/Integrations"));
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Login} />
+      <Route path="/change-password">
+        <AuthGuard>
+          <ChangePassword />
+        </AuthGuard>
+      </Route>
       <Route path="/dashboard">
-        <AuthGuard><Dashboard /></AuthGuard>
+        <AuthGuard>
+          <Dashboard />
+        </AuthGuard>
       </Route>
       <Route path="/tickets/new">
-        <AuthGuard><CreateTicket /></AuthGuard>
+        <AuthGuard>
+          <CreateTicket />
+        </AuthGuard>
       </Route>
       <Route path="/tickets/:id">
-        {(params) => <AuthGuard><TicketDetail /></AuthGuard>}
+        {(params) => (
+          <AuthGuard>
+            <TicketDetail />
+          </AuthGuard>
+        )}
       </Route>
       <Route path="/tickets">
-        <AuthGuard><Tickets /></AuthGuard>
+        <AuthGuard>
+          <Tickets />
+        </AuthGuard>
       </Route>
       <Route path="/departments">
-        <AuthGuard><Departments /></AuthGuard>
+        <AuthGuard>
+          <Departments />
+        </AuthGuard>
       </Route>
       <Route path="/users">
-        <AuthGuard><Users /></AuthGuard>
+        <AuthGuard>
+          <Users />
+        </AuthGuard>
+      </Route>
+      <Route path="/integrations">
+        <AuthGuard>
+          <Integrations />
+        </AuthGuard>
       </Route>
       <Route path="/settings">
-        <AuthGuard><Settings /></AuthGuard>
+        <AuthGuard>
+          <Settings />
+        </AuthGuard>
       </Route>
       <Route path="/documents">
-        <AuthGuard><Documents /></AuthGuard>
+        <AuthGuard>
+          <Documents />
+        </AuthGuard>
       </Route>
       <Route path="/training">
-        <AuthGuard><Training /></AuthGuard>
+        <AuthGuard>
+          <Training />
+        </AuthGuard>
       </Route>
       <Route path="/automation-rules">
-        <AuthGuard><AutomationRules /></AuthGuard>
+        <AuthGuard>
+          <AutomationRules />
+        </AuthGuard>
       </Route>
       <Route path="/employment-verification">
-        <AuthGuard><EmploymentVerification /></AuthGuard>
+        <AuthGuard>
+          <EmploymentVerification />
+        </AuthGuard>
       </Route>
       <Route path="/background-verification">
-        <AuthGuard><BackgroundVerification /></AuthGuard>
+        <AuthGuard>
+          <BackgroundVerification />
+        </AuthGuard>
       </Route>
       <Route path="/request" component={PublicRequest} />
       <Route component={NotFound} />
@@ -100,7 +174,15 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <Suspense
+            fallback={
+              <div className="workspace-empty" role="status">
+                Loading workspace…
+              </div>
+            }
+          >
+            <Router />
+          </Suspense>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

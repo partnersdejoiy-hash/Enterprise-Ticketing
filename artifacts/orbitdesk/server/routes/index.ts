@@ -1,4 +1,6 @@
 import { Router } from "express";
+import operationsRouter from "./operations.js";
+import automationRulesRouter from "./automationRules.js";
 import healthRouter from "./health.js";
 import authRouter from "./auth.js";
 import usersRouter from "./users.js";
@@ -14,9 +16,13 @@ import emailAccountsRouter from "./emailAccounts.js";
 import webhooksRouter from "./webhooks.js";
 import cronRouter from "./cron.js";
 
+import verificationIntakeRouter from "./verificationIntake.js";
 const router = Router();
+router.use(verificationIntakeRouter);
 
 router.use(healthRouter);
+router.use(automationRulesRouter);
+router.use(operationsRouter);
 router.use(publicRequestRouter);
 router.use(authRouter);
 router.use(usersRouter);
