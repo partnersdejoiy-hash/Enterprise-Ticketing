@@ -1,3 +1,4 @@
+import {runAutomations} from '../lib/automation.js';
 import { Router } from "express";
 import {
   db,
@@ -254,6 +255,7 @@ router.post("/auth/forgot-password", async (req, res) => {
         .returning();
 
       if (ticket) {
+        await runAutomations(ticket.id,['ticket_created']);
         await db
           .insert(ticketHistoryTable)
           .values({

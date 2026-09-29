@@ -249,11 +249,11 @@ export async function runAutomations(
             const has = current.tags.includes(action.value);
             if (action.type === "add_tag" && !has && current.tags.length < 40) {
               current.tags.push(action.value);
-              changes.add_tag = action.value;
+              changes.add_tag = [...((changes.add_tag as string[]) ?? []), action.value];
             }
             if (action.type === "remove_tag" && has) {
               current.tags = current.tags.filter((t) => t !== action.value);
-              changes.remove_tag = action.value;
+              changes.remove_tag = [...((changes.remove_tag as string[]) ?? []), action.value];
             }
           }
           if (
