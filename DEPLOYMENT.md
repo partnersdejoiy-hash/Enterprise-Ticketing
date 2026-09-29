@@ -96,6 +96,10 @@ Sources checked 29 September 2026: https://vercel.com/docs/plans/hobby and https
 
 ## Verification
 
+### One-time Vercel administrator bootstrap
+
+After applying migrations to the connected OrbitDesk database, set `ORBITDESK_BOOTSTRAP_ADMIN=true`, `BOOTSTRAP_ADMIN_EMAIL` and optionally `BOOTSTRAP_ADMIN_NAME` on the intended deployment environment. Enter `BOOTSTRAP_ADMIN_PASSWORD` as a sensitive environment variable (at least 16 characters), then redeploy the reviewed branch. The build runs the existing seed script, which hashes the password, requires a change on first login, and refuses to overwrite an existing account. Remove the bootstrap flag and password after the successful build, then redeploy again. Never enable the bootstrap flag for unrelated projects or branches. No credentials are included in the frontend or committed code.
+
 ```sh
 pnpm typecheck
 pnpm build

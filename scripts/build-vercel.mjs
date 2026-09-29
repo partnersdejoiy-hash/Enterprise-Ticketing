@@ -2,8 +2,17 @@ import { build } from "esbuild";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+// Explicit, one-time deployment bootstrap. Never embed credentials in assets.
+// Existing accounts are refused by seed.ts; remove this flag after success.
+if (process.env.ORBITDESK_BOOTSTRAP_ADMIN === "true") {
+  execFileSync(process.execPath, ["--import", "tsx", "scripts/src/seed.ts"], {
+    cwd: root,
+    stdio: "inherit",
+  });
+}
 const output = path.join(root, ".vercel/output");
 const functionDir = path.join(output, "functions/api.func");
 await rm(output, { recursive: true, force: true });
