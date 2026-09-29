@@ -91,7 +91,13 @@ router.post("/integrations/business-site/verification", async (req, res) => {
       try {
         await verifyBusinessSiteIdentity(authorization.slice(7));
         authenticated = true;
-      } catch { /* Fail closed; never log a token or private request body. */ }
+      } catch (error: any) {
+        // Diagnostic codes only: no token, claim values or private request body.
+        console.warn("Business intake identity rejected", {
+          code: typeof error?.code === "string" ? error.code : "IDENTITY_UNAVAILABLE",
+          claim: typeof error?.claim === "string" ? error.claim : undefined,
+        });
+      }
     }
   } else if (secret && secret.length >= 32 && !(
     !/^\d{13}$/.test(timestamp) ||

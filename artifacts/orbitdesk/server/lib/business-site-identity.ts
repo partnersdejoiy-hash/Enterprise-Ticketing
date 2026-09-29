@@ -27,9 +27,10 @@ export async function verifyBusinessSiteIdentity(token: string, keySet: JWTVerif
     maxTokenAge: "1h",
     clockTolerance: 5,
   });
-  if (payload.owner_id !== expected.ownerId || payload.project_id !== expected.projectId ||
-      payload.environment !== "production" || payload.owner !== "dejoiy" || payload.project !== "dejoiy-site" ||
-      typeof payload.exp !== "number" || typeof payload.iat !== "number" || payload.exp - payload.iat > 3600) {
-    throw new Error("Untrusted workload identity");
+  for (const [claim, value] of Object.entries({ owner_id: expected.ownerId, project_id: expected.projectId,
+    environment: "production", owner: "dejoiy", project: "dejoiy-site" })) {
+    if (payload[claim] !== value) throw Object.assign(new Error("Untrusted workload identity"), { code: "IDENTITY_CLAIM_MISMATCH", claim });
   }
+  if (typeof payload.exp !== "number" || typeof payload.iat !== "number" || payload.exp - payload.iat > 3600)
+    throw Object.assign(new Error("Invalid identity lifetime"), { code: "IDENTITY_LIFETIME" });
 }
