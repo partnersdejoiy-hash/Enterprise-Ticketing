@@ -48,11 +48,15 @@ For a known existing account, an authorised server operator can provide `RESET_U
 
 ## Connect business.dejoiy.com
 
+The DEJOIY Vercel production projects use existing Vercel OIDC workload identity; no shared secret needs to be copied. The receiver pins the DEJOIY team ID, `dejoiy-site` project ID, issuer, audience, subject and production environment in `server/lib/business-site-identity.ts`. It verifies RS256 signatures against Vercel's fixed JWKS URL, expiry, issued-at and not-before. Preview projects and other teams/projects are rejected. This grants only intake submission, never staff or ticket-reading access. Tokens stay server-side and are never logged. The sender only sends this identity to `https://orbitdesk-dejoiy.vercel.app` and refuses redirects.
+
+On another host, configure the shared-secret alternative below. An invalid bearer token never falls back to HMAC.
+
 On the OrbitDesk server:
 
 | Variable                                | Purpose                                                   |
 | --------------------------------------- | --------------------------------------------------------- |
-| `BUSINESS_SITE_INTAKE_SECRET`           | Shared random secret, at least 32 characters; server only |
+| `BUSINESS_SITE_INTAKE_SECRET`           | Optional HMAC alternative outside Vercel; at least 32 characters |
 | `EMPLOYMENT_VERIFICATION_DEPARTMENT_ID` | Existing approved department ID; optional                 |
 | `BGV_DEPARTMENT_ID`                     | Existing approved BGV department ID; optional             |
 
@@ -61,12 +65,12 @@ On the BPO website server:
 | Variable                  | Value                                                       |
 | ------------------------- | ----------------------------------------------------------- |
 | `ORBITDESK_URL`           | OrbitDesk's public HTTPS origin                             |
-| `ORBITDESK_INTAKE_SECRET` | Same secret as `BUSINESS_SITE_INTAKE_SECRET`                |
+| `ORBITDESK_INTAKE_SECRET` | Only for HMAC: same secret as `BUSINESS_SITE_INTAKE_SECRET`                |
 | `ORBITDESK_ENABLED`       | `true` only after both deployments and verification succeed |
 | `VERIFICATION_TO_EMAIL`   | `employment-verification@dejoiy.com`                        |
 | `BGV_TO_EMAIL`            | `bgv@dejoiy.com`                                            |
 
-The website validates the form, signs the exact JSON body using HMAC-SHA256 and sends it server-to-server to `POST /api/integrations/business-site/verification`. OrbitDesk checks the signature, five-minute timestamp window, rate limit, request type, consent and PDF contents. A transaction saves the ticket, its authorisation file, audit entry and idempotency receipt. Only then does the website show a `DJ-EV-…` or `DJ-BGV-…` ticket reference.
+The website validates the form, authenticates with the production workload token (or signs the exact JSON body using HMAC-SHA256 when a shared key is configured) and sends it server-to-server to `POST /api/integrations/business-site/verification`. OrbitDesk checks the workload identity or HMAC signature/five-minute timestamp window, then the rate limit, request type, consent and PDF contents. A transaction saves the ticket, its authorisation file, audit entry and idempotency receipt. Only then does the website show a `DJ-EV-…` or `DJ-BGV-…` ticket reference.
 
 The same request UUID and body return the same ticket; changed content with the same UUID returns 409. A timeout should be retried without changing the request. Failed storage never reports success. Notification failure after storage is reported separately; the ticket remains saved. Website notification emails include the reference, not employee details or the authorisation file. The original email-only flow remains available while `ORBITDESK_ENABLED` is absent/false.
 

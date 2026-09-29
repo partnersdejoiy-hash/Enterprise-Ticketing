@@ -85,6 +85,7 @@
     "cross-env": "^10.1.0",
     "express": "^5.2.1",
     "imapflow": "^1.2.18",
+    "jose": "6.2.12",
     "nodemailer": "^8.0.4",
     "tsx": "catalog:",
     "zustand": "^5.0.12"

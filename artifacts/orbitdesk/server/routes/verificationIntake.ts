@@ -3,6 +3,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { constantEqual, digest, rateLimit } from "../lib/security.js";
 import { authMiddleware, requireAdmin } from "../middlewares/auth.js";
+import { businessSiteOidcEnabled, verifyBusinessSiteIdentity } from "../lib/business-site-identity.js";
 
 const router = Router();
 const types = ["employment-verification", "background-verification"];
@@ -58,7 +59,7 @@ router.get(
       "SELECT request_type,count(*)::int as received,max(created_at) as last_received FROM orbit_intake_receipts GROUP BY request_type",
     );
     res.json({
-      configured: (process.env.BUSINESS_SITE_INTAKE_SECRET?.length ?? 0) >= 32,
+      configured: businessSiteOidcEnabled() || (process.env.BUSINESS_SITE_INTAKE_SECRET?.length ?? 0) >= 32,
       source: "business.dejoiy.com",
       routes: [
         {
@@ -74,14 +75,25 @@ router.get(
 );
 router.post("/integrations/business-site/verification", async (req, res) => {
   const secret = process.env.BUSINESS_SITE_INTAKE_SECRET;
-  if (!secret || secret.length < 32) {
+  const oidcEnabled = businessSiteOidcEnabled();
+  if ((!secret || secret.length < 32) && !oidcEnabled) {
     res.status(503).json({ error: "Intake is not configured" });
     return;
   }
   const timestamp = req.get("X-DEJOIY-Timestamp") || "";
   const signature = req.get("X-DEJOIY-Signature") || "";
   const raw = (req as any).rawBody as Buffer | undefined;
-  if (
+  const authorization = req.get("Authorization") || "";
+  let authenticated = false;
+  if (authorization) {
+    // A failed bearer token never downgrades to another authentication method.
+    if (oidcEnabled && authorization.startsWith("Bearer ") && authorization.length <= 16384) {
+      try {
+        await verifyBusinessSiteIdentity(authorization.slice(7));
+        authenticated = true;
+      } catch { /* Fail closed; never log a token or private request body. */ }
+    }
+  } else if (secret && secret.length >= 32 && !(
     !/^\d{13}$/.test(timestamp) ||
     Math.abs(Date.now() - Number(timestamp)) > 300000 ||
     !raw ||
@@ -92,8 +104,9 @@ router.post("/integrations/business-site/verification", async (req, res) => {
         .update(raw)
         .digest("hex"),
     )
-  ) {
-    res.status(401).json({ error: "Invalid signature" });
+  )) authenticated = true;
+  if (!authenticated) {
+    res.status(401).json({ error: "Invalid service authentication" });
     return;
   }
   if (!(await rateLimit("business-intake", 120, 3600))) {
