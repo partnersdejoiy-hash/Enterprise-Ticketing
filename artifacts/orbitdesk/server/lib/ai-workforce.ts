@@ -7,6 +7,7 @@ import {
   getAiConfig,
   providerConfigured,
 } from "./ai-provider.js";
+import { notifyJobReady, notifyMewBriefing } from "./ai-team-chat.js";
 export async function ensureAiWorkers() {
   await pool.query(
     "INSERT INTO orbit_ai_workers(department_id,kind) SELECT d.id,k.kind FROM departments d CROSS JOIN (VALUES ('triage'),('draft')) k(kind) ON CONFLICT DO NOTHING",
@@ -66,6 +67,11 @@ export async function processAiJobs(ticketId?: number) {
  FROM picked WHERE j.id=picked.id RETURNING j.*`,
     [ticketId ?? null, token],
   );
+  const readies: {
+    workerName: string;
+    department: string;
+    ticketNumber: string;
+  }[] = [];
   await Promise.all(
     claimed.rows.map(async (job) => {
       const { rows } = await pool.query(
@@ -109,6 +115,26 @@ export async function processAiJobs(ticketId?: number) {
           "UPDATE orbit_ai_jobs SET status='ready',output=$1,model=$2,error=NULL,lease_until=NULL,updated_at=now() WHERE id=$3 AND lease_token=$4 AND status='working'",
           [output.text, output.model, job.id, token],
         );
+        try {
+          const info = await pool.query(
+            `SELECT w.name,w.kind,d.name AS department, t.ticket_number AS "ticketNumber"
+             FROM orbit_ai_workers w LEFT JOIN departments d ON d.id=w.department_id
+             JOIN tickets t ON t.id=$2 WHERE w.id=$1`,
+            [job.worker_id, job.ticket_id],
+          );
+          const row = info.rows[0];
+          if (row?.ticketNumber)
+            readies.push({
+              workerName:
+                row.name?.trim() ||
+                (row.kind === "pa" ? "PA" : String(row.kind)),
+              department: row.department ?? "",
+              ticketNumber: row.ticketNumber,
+            });
+          await notifyJobReady(job.worker_id, job.ticket_id);
+        } catch {
+          /* Chat notifications are best-effort; never break job processing. */
+        }
       } catch (e) {
         const cancelled = e instanceof Error && e.message === "cancelled";
         await pool.query(
@@ -127,6 +153,13 @@ export async function processAiJobs(ticketId?: number) {
       }
     }),
   );
+  if (readies.length) {
+    try {
+      await notifyMewBriefing(readies);
+    } catch {
+      /* Chat notifications are best-effort; never break job processing. */
+    }
+  }
   return { processed: claimed.rowCount };
 }
 export function scheduleAiTicket(ticketId: number) {

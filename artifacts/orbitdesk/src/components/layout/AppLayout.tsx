@@ -22,6 +22,7 @@ import {
   UserCircle,
   Briefcase,
   ShieldCheck,
+  MessagesSquare,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ const allNavItems = [
     roles: ["super_admin", "admin"],
   },
   { name: "Training Centre", href: "/training", icon: BookOpen, roles: null },
+  { name: "Team Chat", href: "/team-chat", icon: MessagesSquare, roles: null },
   {
     name: "Website connection",
     href: "/integrations",

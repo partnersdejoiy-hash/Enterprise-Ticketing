@@ -22,6 +22,20 @@ import {
   workforceReport,
 } from "../lib/ai-workforce.js";
 import {
+  botDisplayName,
+  chatRoster,
+  createHuddle,
+  getMessages,
+  getOrCreateDirectThread,
+  listThreads,
+  markRead,
+  postMessage,
+  replyAsBot,
+  threadOwnedBy,
+  threadParticipants,
+  type ChatWorker,
+} from "../lib/ai-team-chat.js";
+import {
   readJsonSetting,
   writeJsonSetting,
 } from "../lib/workspace-settings.js";
@@ -330,4 +344,205 @@ router.post("/ai/chat", async (req: AuthenticatedRequest, res) => {
     });
   }
 });
+const MAX_HUDDLE_BOTS = 6;
+
+async function requireChatReady(res: any) {
+  const c = await getAiConfig();
+  if (!c.enabled || !providerConfigured(c)) {
+    res.status(503).json({
+      error:
+        "Server AI is not enabled. Ask the superadmin to connect and enable it in Settings → AI workforce.",
+    });
+    return null;
+  }
+  return c;
+}
+
+router.get("/ai/chat/roster", async (req: AuthenticatedRequest, res) => {
+  await ensureAiWorkers();
+  const roster = await chatRoster();
+  res.json({
+    bots: roster.map((w) => ({
+      id: w.id,
+      kind: w.kind,
+      name: botDisplayName(w),
+      enabled: w.enabled,
+      department: w.department,
+      role:
+        w.kind === "pa"
+          ? "Personal assistant"
+          : w.kind === "draft"
+            ? "Response drafting"
+            : "Triage & review",
+    })),
+  });
+});
+
+router.get("/ai/chat/threads", async (req: AuthenticatedRequest, res) => {
+  res.json({ threads: await listThreads(req.user!.id) });
+});
+
+async function runHuddleRound(
+  config: any,
+  threadId: number,
+  userName: string,
+  actorId: number,
+) {
+  const bots = (await threadParticipants(threadId)).filter((b) => b.enabled);
+  const replies: { bot: string; text: string }[] = [];
+  for (const bot of bots) {
+    const history = await getMessages(threadId, userName);
+    const mates = bots
+      .filter((b) => b.id !== bot.id)
+      .map((b) => botDisplayName(b));
+    try {
+      const text = await replyAsBot(config, bot, history, mates, actorId);
+      await postMessage({
+        threadId,
+        sender: "bot",
+        workerId: bot.id,
+        content: text,
+      });
+      replies.push({ bot: botDisplayName(bot), text });
+    } catch (e) {
+      const msg =
+        e instanceof AiUnavailable ? e.message : "AI unavailable right now";
+      await postMessage({
+        threadId,
+        sender: "bot",
+        workerId: bot.id,
+        content: `${botDisplayName(bot)} could not reply: ${msg}`,
+      });
+      replies.push({ bot: botDisplayName(bot), text: msg });
+      if (e instanceof AiUnavailable) break;
+    }
+  }
+  return replies;
+}
+
+router.post("/ai/chat/threads", async (req: AuthenticatedRequest, res) => {
+  const config = await requireChatReady(res);
+  if (!config) return;
+  await ensureAiWorkers();
+  const userId = req.user!.id;
+  const userName = req.user!.name ?? "You";
+  if (typeof req.body?.workerId === "number") {
+    const roster = await chatRoster();
+    const bot = roster.find((w) => w.id === req.body.workerId);
+    if (!bot) return void res.status(404).json({ error: "Bot not found." });
+    if (!bot.enabled)
+      return void res.status(409).json({ error: "This bot is disabled." });
+    const threadId = await getOrCreateDirectThread(userId, bot.id);
+    return void res.json({ threadId });
+  }
+  const workerIds = Array.isArray(req.body?.workerIds)
+    ? [...new Set(req.body.workerIds)].filter((n) => Number.isInteger(n))
+    : [];
+  const topic =
+    typeof req.body?.topic === "string" ? req.body.topic.trim() : "";
+  if (workerIds.length < 2)
+    return void res.status(400).json({ error: "Pick at least 2 bots." });
+  if (workerIds.length > MAX_HUDDLE_BOTS)
+    return void res
+      .status(400)
+      .json({ error: `Pick at most ${MAX_HUDDLE_BOTS} bots per huddle.` });
+  if (!topic || topic.length > 500)
+    return void res.status(400).json({ error: "Give the huddle a topic." });
+  const roster = await chatRoster();
+  const bots = workerIds
+    .map((id) => roster.find((w) => w.id === id))
+    .filter((w): w is ChatWorker => !!w && w.enabled);
+  if (bots.length < 2)
+    return void res
+      .status(409)
+      .json({ error: "Pick at least 2 enabled bots." });
+  const threadId = await createHuddle(
+    userId,
+    bots.map((b) => b.id),
+    topic,
+  );
+  await postMessage({ threadId, sender: "user", userId, content: topic });
+  await runHuddleRound(config, threadId, userName, userId);
+  res.json({ threadId });
+});
+
+router.get("/ai/chat/threads/:id", async (req: AuthenticatedRequest, res) => {
+  const threadId = Number(req.params.id);
+  if (
+    !Number.isInteger(threadId) ||
+    !(await threadOwnedBy(threadId, req.user!.id))
+  )
+    return void res.status(404).json({ error: "Thread not found." });
+  const threads = await listThreads(req.user!.id);
+  const thread = threads.find((t) => t.id === threadId);
+  const messages = await getMessages(threadId, req.user!.name ?? "You");
+  await markRead(threadId);
+  res.json({ thread, messages });
+});
+
+router.post(
+  "/ai/chat/threads/:id/messages",
+  async (req: AuthenticatedRequest, res) => {
+    const config = await requireChatReady(res);
+    if (!config) return;
+    const threadId = Number(req.params.id);
+    if (
+      !Number.isInteger(threadId) ||
+      !(await threadOwnedBy(threadId, req.user!.id))
+    )
+      return void res.status(404).json({ error: "Thread not found." });
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    if (!text || text.length > 2000)
+      return void res
+        .status(400)
+        .json({ error: "Enter a message up to 2,000 characters." });
+    const userId = req.user!.id;
+    const userName = req.user!.name ?? "You";
+    const threads = await listThreads(userId);
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread)
+      return void res.status(404).json({ error: "Thread not found." });
+    await postMessage({ threadId, sender: "user", userId, content: text });
+    if (thread.kind === "direct" && thread.worker_id) {
+      const roster = await chatRoster();
+      const bot = roster.find((w) => w.id === thread.worker_id);
+      if (!bot?.enabled)
+        return void res.status(409).json({ error: "This bot is disabled." });
+      try {
+        const history = await getMessages(threadId, userName);
+        const reply = await replyAsBot(config, bot, history, [], userId);
+        await postMessage({
+          threadId,
+          sender: "bot",
+          workerId: bot.id,
+          content: reply,
+        });
+        return void res.json({ ok: true });
+      } catch (e) {
+        return void res.status(503).json({
+          error: e instanceof AiUnavailable ? e.message : "AI unavailable",
+        });
+      }
+    }
+    await runHuddleRound(config, threadId, userName, userId);
+    res.json({ ok: true });
+  },
+);
+
+router.delete(
+  "/ai/chat/threads/:id",
+  async (req: AuthenticatedRequest, res) => {
+    const threadId = Number(req.params.id);
+    if (
+      !Number.isInteger(threadId) ||
+      !(await threadOwnedBy(threadId, req.user!.id))
+    )
+      return void res.status(404).json({ error: "Thread not found." });
+    await pool.query(`DELETE FROM orbit_ai_chat_threads WHERE id=$1`, [
+      threadId,
+    ]);
+    res.json({ ok: true });
+  },
+);
+
 export default router;

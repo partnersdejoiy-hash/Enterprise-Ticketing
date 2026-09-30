@@ -32,5 +32,11 @@ await pool.query(
     "utf8",
   ),
 );
+await pool.query(
+  await readFile(
+    new URL("../../migrations/005_ai_team_chat.sql", import.meta.url),
+    "utf8",
+  ),
+);
 console.log("Database migrations applied.");
 await pool.end();

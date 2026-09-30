@@ -23,6 +23,7 @@ const EmploymentVerification = lazy(
 const BackgroundVerification = lazy(
   () => import("@/pages/BackgroundVerification"),
 );
+const TeamChat = lazy(() => import("@/pages/TeamChat"));
 const PublicRequest = lazy(() => import("@/pages/PublicRequest"));
 import { useAuthStore } from "@/lib/auth";
 
@@ -161,6 +162,11 @@ function Router() {
       <Route path="/background-verification">
         <AuthGuard>
           <BackgroundVerification />
+        </AuthGuard>
+      </Route>
+      <Route path="/team-chat">
+        <AuthGuard>
+          <TeamChat />
         </AuthGuard>
       </Route>
       <Route path="/request" component={PublicRequest} />
