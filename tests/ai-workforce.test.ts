@@ -33,7 +33,7 @@ test("AI workforce: access, persistence, private context, jobs, cancellation and
     await import("../artifacts/orbitdesk/server/lib/ai-workforce.ts");
   const { writeJsonSetting } =
     await import("../artifacts/orbitdesk/server/lib/workspace-settings.ts");
-  const { aiDefaults, completeAi } =
+  const { aiDefaults, completeAi, validAiConfig } =
     await import("../artifacts/orbitdesk/server/lib/ai-provider.ts");
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((r) => server.once("listening", r));
@@ -43,7 +43,14 @@ test("AI workforce: access, persistence, private context, jobs, cancellation and
   let calls: any[] = [];
   let intercept: (() => Promise<void>) | undefined;
   globalThis.fetch = async (url, init) => {
-    if (String(url).startsWith("https://openrouter.ai/")) {
+    if (
+      [
+        "https://openrouter.ai/",
+        "https://opencode.ai/",
+        "https://ollama.com/",
+        "https://ollama.example.test/",
+      ].some((prefix) => String(url).startsWith(prefix))
+    ) {
       calls.push(JSON.parse(String(init?.body)));
       if (intercept) await intercept();
       return new Response(
@@ -303,6 +310,54 @@ test("AI workforce: access, persistence, private context, jobs, cancellation and
         )
       ).status,
       403,
+    );
+    await pool.query("DELETE FROM orbit_ai_calls");
+    process.env.OPENCODE_API_KEY = "synthetic-test-key";
+    process.env.OLLAMA_API_KEY = "synthetic-test-key";
+    process.env.ORBIT_OLLAMA_URL = "https://ollama.example.test/v1";
+    process.env.ORBIT_OLLAMA_TOKEN = "synthetic-test-key";
+    for (const [provider, model] of [
+      ["opencode", "longcat-2.5-preview-free"],
+      ["ollama-cloud", "gemma4:31b"],
+      ["ollama", "qwen3:8b"],
+    ] as const) {
+      const result = await completeAi(
+        { ...aiDefaults, provider, model },
+        "test",
+        "synthetic",
+        "provider-test",
+      );
+      assert.match(result.text, /Synthetic draft/);
+      assert.equal(calls.at(-1).model, model);
+    }
+    assert.equal(
+      validAiConfig({
+        ...aiDefaults,
+        provider: "opencode",
+        model: "paid-model",
+      }),
+      false,
+    );
+    await assert.rejects(
+      () =>
+        completeAi(
+          { ...aiDefaults, provider: "opencode", model: "paid-model" },
+          "test",
+          "test",
+          "test",
+        ),
+      /not permitted/,
+    );
+    delete process.env.OLLAMA_API_KEY;
+    await assert.rejects(
+      () =>
+        completeAi(
+          { ...aiDefaults, provider: "ollama-cloud", model: "gemma4:31b" },
+          "test",
+          "test",
+          "test",
+        ),
+      /Setup required/,
     );
     await writeJsonSetting("ai_workforce_v1", aiDefaults);
     assert.equal(

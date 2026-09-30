@@ -178,6 +178,16 @@ router.post("/integrations/business-site/verification", async (req, res) => {
         });
         return;
       }
+      if (existing.rows[0].ticket_id === null) {
+        res
+          .status(410)
+          .json({
+            error:
+              "This request was deleted by an administrator. Submit a new request if needed.",
+            code: "REQUEST_DELETED",
+          });
+        return;
+      }
       res.json({
         success: true,
         ticketNumber: existing.rows[0].ticket_number,

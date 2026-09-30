@@ -27,6 +27,14 @@ test("website intake, durable retries, private evidence and authenticated staff 
       "utf8",
     ),
   );
+  for (const file of [
+    "003_ai_workforce.sql",
+    "004_ticket_deletion.sql",
+    "004_ticket_deletion.sql",
+  ])
+    await pg.exec(
+      await readFile(new URL("../migrations/" + file, import.meta.url), "utf8"),
+    );
   await pg.exec(
     "ALTER TABLE users ALTER COLUMN must_change_password SET DEFAULT false",
   );
@@ -290,8 +298,8 @@ test("website intake, durable retries, private evidence and authenticated staff 
       403,
     );
     await expected(
-      await request(`/tickets/${id}`, "DELETE", undefined, admin),
-      409,
+      await request(`/tickets/${id}`, "DELETE", undefined, hr),
+      403,
     );
     await expected(
       await request(`/tickets/${id}`, "PATCH", { departmentId: 2 }, hr),
@@ -505,6 +513,78 @@ test("website intake, durable retries, private evidence and authenticated staff 
       process.env.BPO_SITE_ROOT ? 3 : 2,
     );
     assertions++;
+    // Failure must roll back the entire deletion, including the audit write.
+    await pool.query(
+      `CREATE FUNCTION block_test_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic delete failure'; END $$`,
+    );
+    await pool.query(
+      "CREATE TRIGGER block_test_delete BEFORE DELETE ON tickets FOR EACH ROW EXECUTE FUNCTION block_test_delete()",
+    );
+    await expected(
+      await request(`/tickets/${id}`, "DELETE", undefined, admin),
+      500,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT count(*)::int n FROM ticket_attachments WHERE ticket_id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT count(*)::int n FROM orbit_ticket_deletions WHERE ticket_id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      0,
+    );
+    await pool.query("DROP TRIGGER block_test_delete ON tickets");
+    await expected(
+      await request(`/tickets/${id}`, "DELETE", undefined, admin),
+      204,
+    );
+    for (const table of [
+      "ticket_comments",
+      "ticket_history",
+      "ticket_attachments",
+      "orbit_ai_jobs",
+    ])
+      assert.equal(
+        (
+          await pool.query(
+            `SELECT count(*)::int n FROM ${table} WHERE ticket_id=$1`,
+            [id],
+          )
+        ).rows[0].n,
+        0,
+      );
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT count(*)::int n FROM orbit_ticket_deletions WHERE ticket_id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT ticket_id FROM orbit_intake_receipts WHERE ticket_number=$1",
+          [first.ticketNumber],
+        )
+      ).rows[0].ticket_id,
+      null,
+    );
+    await expected(await signed(b), 410);
+    await expected(
+      await request(`/tickets/${id}`, "DELETE", undefined, admin),
+      404,
+    );
     console.log(
       `${assertions} security, intake and operations assertions passed; no real email sent.`,
     );

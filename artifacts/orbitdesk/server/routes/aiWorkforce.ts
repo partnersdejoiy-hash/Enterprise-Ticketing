@@ -63,7 +63,7 @@ router.post("/ai/test", superadmin, async (req: AuthenticatedRequest, res) => {
   if (!validAiConfig(c))
     return void res.status(400).json({
       error:
-        "Choose a free OpenRouter model or your hosted Ollama model; daily limit 1–50.",
+        "Choose a free OpenRouter/OpenCode model or an Ollama model; daily limit 1–50.",
     });
   try {
     const result = await completeAi(
@@ -90,7 +90,7 @@ router.put("/ai/config", superadmin, async (req: AuthenticatedRequest, res) => {
   if (!validAiConfig(c))
     return void res.status(400).json({
       error:
-        "Invalid configuration. OpenRouter must use a :free model; limit 1–50.",
+        "Invalid configuration. OpenRouter/OpenCode must use an allowed free model; limit 1–50.",
     });
   if (c.enabled) {
     const probe = await readJsonSetting("ai_probe_v1", {
@@ -298,7 +298,7 @@ router.post("/ai/chat", async (req: AuthenticatedRequest, res) => {
   if (!c.enabled)
     return void res.status(503).json({
       error:
-        "Server AI setup required. Ask the superadmin to connect and enable OpenRouter or Ollama in AI workforce settings.",
+        "Server AI setup required. Ask the superadmin to connect and enable OpenRouter, OpenCode or Ollama in AI workforce settings.",
     });
   try {
     res.json(

@@ -1,3 +1,5 @@
+import { useMyPermissions } from "@/hooks/usePermissions";
+import { deleteTicket } from "@/lib/delete-ticket";
 import { TicketAiDrafts } from "@/components/AiWorkforce";
 import { TicketPeople } from "@/components/TicketPeople";
 import { useDirectory } from "@/lib/directory";
@@ -111,7 +113,10 @@ export default function TicketDetail() {
   const queryClient = useQueryClient();
 
   const { user } = useAuthStore();
-  const canDelete = user?.role === "super_admin" || user?.role === "admin";
+  const { perms } = useMyPermissions();
+  const canDelete =
+    (user?.role === "super_admin" || user?.role === "admin") &&
+    perms.canDeleteTickets;
   const [comment, setComment] = useState("");
   const [isInternal, setIsInternal] = useState(false);
   const [activeTab, setActiveTab] = useState<"conversation" | "history">(
@@ -123,13 +128,8 @@ export default function TicketDetail() {
   const handleDeleteTicket = async () => {
     setDeletingTicket(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/tickets/${ticketId}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to delete ticket");
-      await queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      await deleteTicket(ticketId);
+      await queryClient.invalidateQueries();
       toast({
         title: "Ticket deleted",
         description: "The ticket has been permanently deleted",

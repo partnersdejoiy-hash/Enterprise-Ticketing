@@ -1,8 +1,17 @@
 import { pool } from "@workspace/db";
 import { readJsonSetting } from "./workspace-settings.js";
+export const OPENCODE_FREE_MODELS = [
+  "longcat-2.5-preview-free",
+  "mimo-v2.5-free",
+  "mimo-v2.6-flash-free",
+];
 export const aiDefaults = {
   enabled: false,
-  provider: "openrouter" as "openrouter" | "ollama",
+  provider: "openrouter" as
+    | "openrouter"
+    | "ollama"
+    | "ollama-cloud"
+    | "opencode",
   model: "qwen/qwen3.8-27b:free",
   dailyLimit: 40,
   revision: 1,
@@ -10,19 +19,29 @@ export const aiDefaults = {
 export type AiConfig = typeof aiDefaults;
 export const getAiConfig = () => readJsonSetting("ai_workforce_v1", aiDefaults);
 export function providerConfigured(config: AiConfig) {
-  return config.provider === "openrouter"
-    ? !!process.env.OPENROUTER_API_KEY
-    : !!process.env.ORBIT_OLLAMA_URL && !!process.env.ORBIT_OLLAMA_TOKEN;
+  switch (config.provider) {
+    case "openrouter":
+      return !!process.env.OPENROUTER_API_KEY;
+    case "opencode":
+      return !!process.env.OPENCODE_API_KEY;
+    case "ollama-cloud":
+      return !!process.env.OLLAMA_API_KEY;
+    case "ollama":
+      return !!process.env.ORBIT_OLLAMA_URL && !!process.env.ORBIT_OLLAMA_TOKEN;
+    default:
+      return false;
+  }
 }
 export function validAiConfig(value: unknown): value is AiConfig {
   const c = value as AiConfig;
   return (
     !!c &&
     typeof c.enabled === "boolean" &&
-    ["openrouter", "ollama"].includes(c.provider) &&
+    ["openrouter", "ollama", "ollama-cloud", "opencode"].includes(c.provider) &&
     typeof c.model === "string" &&
     /^[a-zA-Z0-9_./:-]{2,120}$/.test(c.model) &&
     (c.provider !== "openrouter" || c.model.endsWith(":free")) &&
+    (c.provider !== "opencode" || OPENCODE_FREE_MODELS.includes(c.model)) &&
     Number.isInteger(c.dailyLimit) &&
     c.dailyLimit >= 1 &&
     c.dailyLimit <= 50
@@ -36,6 +55,10 @@ export async function completeAi(
   purpose: string,
   actorId?: number,
 ) {
+  if (!validAiConfig(config))
+    throw new AiUnavailable(
+      "Invalid AI provider or model. Paid OpenCode/OpenRouter models are not permitted.",
+    );
   if (!providerConfigured(config))
     throw new AiUnavailable(
       "Setup required: connect the server AI provider in Vercel.",
@@ -45,6 +68,12 @@ export async function completeAi(
   if (config.provider === "openrouter") {
     if (!config.model.endsWith(":free"))
       throw new AiUnavailable("Only free model variants are permitted.");
+  } else if (config.provider === "opencode") {
+    url = "https://opencode.ai/zen/v1/chat/completions";
+    key = process.env.OPENCODE_API_KEY;
+  } else if (config.provider === "ollama-cloud") {
+    url = "https://ollama.com/v1/chat/completions";
+    key = process.env.OLLAMA_API_KEY;
   } else {
     const endpoint = new URL(process.env.ORBIT_OLLAMA_URL!);
     if (

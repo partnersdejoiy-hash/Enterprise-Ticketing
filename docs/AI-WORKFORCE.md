@@ -33,3 +33,17 @@ Only superadmins configure names, providers, enablement, queue retries and PA ge
 ## Deployment and rollback
 
 Apply additive `migrations/003_ai_workforce.sql` via `pnpm db:migrate` before releasing. No existing users/roles are changed. Global AI remains disabled by default until credentials and the connection test are complete. Rollback can disable global AI; tables/drafts need not be deleted. `tests/ai-workforce.test.ts` exercises authorization, non-disclosure, concurrent deduplication, persistence, cancellation and caps using a simulated provider. A passing test is not evidence of a live provider connection.
+
+## Ollama Cloud and OpenCode Zen
+
+All department workers and the PA use the saved workspace provider/model. Superadmins can select **Ollama Cloud** (server variable `OLLAMA_API_KEY`, suggested model `gemma4:31b`) or **OpenCode Zen** (`OPENCODE_API_KEY`). Endpoints are fixed to `https://ollama.com/v1/chat/completions` and `https://opencode.ai/zen/v1/chat/completions`; keys never reach the browser. Self-hosted Ollama remains available.
+
+OpenCode accepts only `longcat-2.5-preview-free`, `mimo-v2.5-free`, and `mimo-v2.6-flash-free`. No paid-model fallback is attempted. These are hosted offers, not a guarantee of permanent free availability or an open-source license for every model. MiMo free prompts may be used for improvement; no confidential or personal information should be entered into chat. Automatic worker prompts contain workflow metadata only. Ollama Cloud has account quotas; use its free plan and do not enable paid capacity without authorization. This application does not change provider billing settings.
+
+After setting the chosen server key in Vercel, redeploy, select the provider/model, run **Test connection**, then enable and save. A model appearing in the selector does not mean inference is connected. Reference docs: https://docs.ollama.com/cloud and https://opencode.ai/docs/en/zen/ (checked 2026-09-30).
+
+## Ticket deletion
+
+Apply `004_ticket_deletion.sql` before this release. Authorized admins can delete website verification tickets as well as internal tickets. Deletion is transactional: comments, history, uploaded evidence and AI jobs are removed together. A minimal audit row retains the ticket reference, deleting actor and time. The intake receipt retains its request ID/hash/reference with a null ticket ID; replay returns HTTP 410 and cannot recreate the deleted ticket. Existing orphan records are not purged by the migration. Foreign keys enforce integrity for new writes.
+
+Single and bulk delete now report server errors; bulk results retain failed selections and count only confirmed successes. Deletion remains permanent and requires the existing confirmation dialog. Regression tests use an isolated database, including an injected failure to prove rollback; no production ticket needs to be deleted to validate this change.

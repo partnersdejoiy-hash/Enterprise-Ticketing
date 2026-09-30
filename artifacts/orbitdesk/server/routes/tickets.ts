@@ -6,6 +6,7 @@ import { allowed } from "../lib/permissions.js";
 import { Router } from "express";
 import {
   db,
+  pool,
   ticketsTable,
   usersTable,
   departmentsTable,
@@ -955,30 +956,31 @@ router.delete(
         return;
       }
       const ticketId = parseInt(String(req.params.ticketId), 10);
-      const [sourceTicket] = await db
-        .select({ tags: ticketsTable.tags })
-        .from(ticketsTable)
-        .where(eq(ticketsTable.id, ticketId));
-      if (sourceTicket?.tags.includes("business-website")) {
-        res.status(409).json({
-          error: "Close verification requests to retain their audit trail.",
-        });
-        return;
-      }
-      // Delete comments and history first
-      await db
-        .delete(commentsTable)
-        .where(eq(commentsTable.ticketId, ticketId));
-      await db
-        .delete(ticketHistoryTable)
-        .where(eq(ticketHistoryTable.ticketId, ticketId));
-      const deleted = await db
-        .delete(ticketsTable)
-        .where(eq(ticketsTable.id, ticketId))
-        .returning();
-      if (!deleted.length) {
-        res.status(404).json({ error: "Not Found" });
-        return;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const found = await client.query(
+          "SELECT ticket_number FROM tickets WHERE id=$1 FOR UPDATE",
+          [ticketId],
+        );
+        if (!found.rowCount) {
+          await client.query("ROLLBACK");
+          res.status(404).json({ error: "Ticket not found" });
+          return;
+        }
+        await client.query(
+          "INSERT INTO orbit_ticket_deletions(ticket_id,ticket_number,deleted_by) VALUES($1,$2,$3)",
+          [ticketId, found.rows[0].ticket_number, req.user!.id],
+        );
+        // Foreign keys remove comments, history, files and AI jobs atomically.
+        // Intake receipts keep a null ticket_id to prevent accidental recreation.
+        await client.query("DELETE FROM tickets WHERE id=$1", [ticketId]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
       }
       res.status(204).end();
     } catch (err) {

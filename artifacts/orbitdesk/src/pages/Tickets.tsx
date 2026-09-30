@@ -1,3 +1,4 @@
+import { deleteTicket, deleteTickets } from "@/lib/delete-ticket";
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
@@ -151,7 +152,9 @@ export default function Tickets() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
-  const canDelete = user?.role === "super_admin" || user?.role === "admin";
+  const canDelete =
+    (user?.role === "super_admin" || user?.role === "admin") &&
+    perms.canDeleteTickets;
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     ticketNumber: string;
@@ -163,13 +166,8 @@ export default function Tickets() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`/api/tickets/${deleteTarget.id}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to delete ticket");
-      await queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      await deleteTicket(deleteTarget.id);
+      await queryClient.invalidateQueries();
       toast({
         title: "Ticket deleted",
         description: `${deleteTarget.ticketNumber} has been permanently deleted`,
@@ -211,22 +209,16 @@ export default function Tickets() {
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const ids = Array.from(selected);
-      await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/tickets/${id}`, {
-            method: "DELETE",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-        ),
-      );
-      await queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      const result = await deleteTickets(Array.from(selected));
+      await queryClient.invalidateQueries();
       toast({
-        title: "Tickets deleted",
-        description: `${ids.length} ticket${ids.length !== 1 ? "s" : ""} permanently deleted`,
+        title: result.failed.length
+          ? "Some tickets could not be deleted"
+          : "Tickets deleted",
+        description: `${result.deleted.length} deleted. ${result.failed.length} failed.${result.failed.length ? " " + result.failed[0].error : ""}`,
+        variant: result.failed.length ? "destructive" : "default",
       });
-      setSelected(new Set());
+      setSelected(new Set(result.failed.map((item) => item.id)));
       setConfirmBulkDelete(false);
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });

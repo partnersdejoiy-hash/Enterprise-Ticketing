@@ -13,7 +13,7 @@ type Worker = {
 };
 type Config = {
   enabled: boolean;
-  provider: "openrouter" | "ollama";
+  provider: "openrouter" | "ollama" | "ollama-cloud" | "opencode";
   model: string;
   dailyLimit: number;
 };
@@ -217,10 +217,11 @@ export function AiWorkforcePanel() {
       <section className="rounded-xl border p-5 space-y-4">
         <h3 className="font-semibold">Provider & spending protection</h3>
         <p className="text-sm text-muted-foreground">
-          OpenRouter uses free variants only, with no paid fallback. Free
-          capacity is shared and can be rate limited. Ollama needs your own
-          continuously running HTTPS server. This app does not host an LLM on
-          Vercel.
+          This workspace model powers every department worker and your PA.
+          OpenRouter and OpenCode are restricted to free model IDs, with no paid
+          fallback. Hosted free capacity has limits and may change. Self-hosted
+          Ollama needs an always-on HTTPS server; Vercel does not run the model
+          itself.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="text-sm space-y-2">
@@ -233,26 +234,49 @@ export function AiWorkforcePanel() {
                 setConfig({
                   ...config,
                   provider: e.target.value as Config["provider"],
-                  model:
-                    e.target.value === "openrouter"
-                      ? "qwen/qwen3.8-27b:free"
-                      : "qwen3:8b",
+                  model: (
+                    {
+                      openrouter: "qwen/qwen3.8-27b:free",
+                      ollama: "qwen3:8b",
+                      "ollama-cloud": "gemma4:31b",
+                      opencode: "longcat-2.5-preview-free",
+                    } as Record<string, string>
+                  )[e.target.value],
                   enabled: false,
                 })
               }
             >
               <option value="openrouter">OpenRouter · free models only</option>
               <option value="ollama">Self-hosted Ollama</option>
+              <option value="ollama-cloud">Ollama Cloud</option>
+              <option value="opencode">OpenCode Zen · free models only</option>
             </select>
           </label>
           <label className="text-sm space-y-2">
             <span>Model ID</span>
             <Input
+              list="orbit-ai-models"
               value={config.model}
               disabled={!editable || busy}
               onChange={(e) => setConfig({ ...config, model: e.target.value })}
             />
           </label>
+          <datalist id="orbit-ai-models">
+            {(config.provider === "opencode"
+              ? [
+                  "longcat-2.5-preview-free",
+                  "mimo-v2.5-free",
+                  "mimo-v2.6-flash-free",
+                ]
+              : config.provider === "ollama-cloud"
+                ? ["gemma4:31b"]
+                : config.provider === "ollama"
+                  ? ["qwen3:8b"]
+                  : ["qwen/qwen3.8-27b:free"]
+            ).map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
           <label className="text-sm space-y-2">
             <span>Daily request cap (shared by all workers)</span>
             <Input
@@ -278,7 +302,11 @@ export function AiWorkforcePanel() {
         <p className="text-xs text-muted-foreground">
           {config.provider === "openrouter"
             ? "Set OPENROUTER_API_KEY as a sensitive server environment variable in Vercel, then redeploy."
-            : "Set ORBIT_OLLAMA_URL (ending /v1) and ORBIT_OLLAMA_TOKEN in Vercel, then redeploy."}{" "}
+            : config.provider === "opencode"
+              ? "Set OPENCODE_API_KEY in Vercel, then redeploy. Free MiMo prompts may be used for model improvement; do not submit personal or confidential data."
+              : config.provider === "ollama-cloud"
+                ? "Set OLLAMA_API_KEY in Vercel, then redeploy. Stay on the provider’s free plan; OrbitDesk does not purchase capacity."
+                : "Set ORBIT_OLLAMA_URL (ending /v1) and ORBIT_OLLAMA_TOKEN in Vercel, then redeploy."}{" "}
           Never enter keys into chat. Run a connection test before enabling.
         </p>
         <div className="flex gap-2 flex-wrap">
