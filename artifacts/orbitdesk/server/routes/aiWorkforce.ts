@@ -11,6 +11,7 @@ import {
   AiUnavailable,
   completeAi,
   getAiConfig,
+  getAiProviders,
   providerConfigured,
   validAiConfig,
 } from "../lib/ai-provider.js";
@@ -52,6 +53,7 @@ router.get("/ai/workforce", requireAdmin, async (_req, res) => {
   const report = await workforceReport();
   res.json({
     config,
+    providers: await getAiProviders(config),
     configured: providerConfigured(config),
     workers: workers.rows,
     requestsToday: usage.rows[0].requests,
@@ -73,7 +75,7 @@ router.post("/ai/test", superadmin, async (req: AuthenticatedRequest, res) => {
       "connection-test",
       req.user!.id,
     );
-    await writeJsonSetting("ai_probe_v1", {
+    await writeJsonSetting(`ai_probe_v1_${c.provider}`, {
       provider: c.provider,
       model: c.model,
       at: Date.now(),
@@ -93,11 +95,15 @@ router.put("/ai/config", superadmin, async (req: AuthenticatedRequest, res) => {
         "Invalid configuration. OpenRouter/OpenCode must use an allowed free model; limit 1–50.",
     });
   if (c.enabled) {
-    const probe = await readJsonSetting("ai_probe_v1", {
+    const legacyProbe = await readJsonSetting("ai_probe_v1", {
       provider: "",
       model: "",
       at: 0,
     });
+    const probe = await readJsonSetting(
+      `ai_probe_v1_${c.provider}`,
+      legacyProbe,
+    );
     if (
       !providerConfigured(c) ||
       probe.provider !== c.provider ||
@@ -129,6 +135,13 @@ router.put("/ai/config", superadmin, async (req: AuthenticatedRequest, res) => {
     await client.query(
       "INSERT INTO system_settings(key,value) VALUES('ai_workforce_v1',$1) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=now()",
       [JSON.stringify(config)],
+    );
+    await client.query(
+      "INSERT INTO system_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=$2,updated_at=now()",
+      [
+        `ai_provider_model_${config.provider}`,
+        JSON.stringify({ model: config.model }),
+      ],
     );
     await client.query(
       "UPDATE orbit_ai_jobs SET status='cancelled',error='Configuration changed',updated_at=now() WHERE status IN ('queued','working')",

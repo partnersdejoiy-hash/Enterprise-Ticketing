@@ -359,6 +359,55 @@ test("AI workforce: access, persistence, private context, jobs, cancellation and
         ),
       /Setup required/,
     );
+    const openCodeConfig = {
+      ...aiDefaults,
+      provider: "opencode",
+      model: "mimo-v2.6-flash-free",
+      enabled: false,
+    };
+    assert.equal(
+      (await request("/ai/test", "POST", openCodeConfig, sa)).status,
+      200,
+    );
+    assert.equal(
+      (
+        await request(
+          "/ai/config",
+          "PUT",
+          { ...openCodeConfig, enabled: true },
+          sa,
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await request("/ai/config", "PUT", { ...aiDefaults, enabled: true }, sa))
+        .status,
+      200,
+      "another provider test does not erase OpenRouter's valid probe",
+    );
+    const providers = (
+      await (await request("/ai/workforce", "GET", undefined, sa)).json()
+    ).providers;
+    assert.equal(providers.length, 4);
+    assert.equal(
+      providers.find((p: any) => p.id === "opencode").model,
+      "mimo-v2.6-flash-free",
+      "provider selection remembers saved model",
+    );
+    assert.equal(
+      providers.find((p: any) => p.id === "opencode").configured,
+      true,
+    );
+    assert.equal(
+      providers.find((p: any) => p.id === "ollama-cloud").configured,
+      false,
+    );
+    assert.equal(providers.filter((p: any) => p.active).length, 1);
+    assert.ok(
+      !JSON.stringify(providers).includes("synthetic-test-key"),
+      "never expose provider credentials",
+    );
     await writeJsonSetting("ai_workforce_v1", aiDefaults);
     assert.equal(
       (await request("/ai/chat", "POST", { text: "Help me" }, employee)).status,

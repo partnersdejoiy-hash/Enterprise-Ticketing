@@ -17,6 +17,71 @@ export const aiDefaults = {
   revision: 1,
 };
 export type AiConfig = typeof aiDefaults;
+export const aiProviderCatalog = [
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    model: "qwen/qwen3.8-27b:free",
+    setup: "OPENROUTER_API_KEY",
+  },
+  {
+    id: "opencode",
+    name: "OpenCode",
+    model: "longcat-2.5-preview-free",
+    setup: "OPENCODE_API_KEY",
+  },
+  {
+    id: "ollama-cloud",
+    name: "Ollama Cloud",
+    model: "gemma4:31b",
+    setup: "OLLAMA_API_KEY",
+  },
+  {
+    id: "ollama",
+    name: "Self-hosted Ollama",
+    model: "qwen3:8b",
+    setup: "ORBIT_OLLAMA_URL + ORBIT_OLLAMA_TOKEN",
+  },
+] as const;
+export async function getAiProviders(config: AiConfig) {
+  const keys = aiProviderCatalog.flatMap((p) => [
+    `ai_provider_model_${p.id}`,
+    `ai_probe_v1_${p.id}`,
+  ]);
+  const saved = await pool.query(
+    "SELECT key,value FROM system_settings WHERE key=ANY($1::text[])",
+    [keys],
+  );
+  const values = new Map<string, any>();
+  for (const row of saved.rows) {
+    try {
+      values.set(row.key, JSON.parse(row.value));
+    } catch {
+      /* Ignore malformed optional preferences. */
+    }
+  }
+  return aiProviderCatalog.map((p) => {
+    const preference = values.get(`ai_provider_model_${p.id}`);
+    const model =
+      config.provider === p.id
+        ? config.model
+        : typeof preference?.model === "string"
+          ? preference.model
+          : p.model;
+    const probe = values.get(`ai_probe_v1_${p.id}`);
+    return {
+      ...p,
+      model,
+      configured: providerConfigured({ ...config, provider: p.id }),
+      tested:
+        probe?.model === model && Date.now() - Number(probe?.at) < 3600000,
+      active:
+        config.enabled &&
+        config.provider === p.id &&
+        providerConfigured(config),
+    };
+  });
+}
 export const getAiConfig = () => readJsonSetting("ai_workforce_v1", aiDefaults);
 export function providerConfigured(config: AiConfig) {
   switch (config.provider) {
@@ -69,7 +134,7 @@ export async function completeAi(
     if (!config.model.endsWith(":free"))
       throw new AiUnavailable("Only free model variants are permitted.");
   } else if (config.provider === "opencode") {
-    url = "https://opencode.ai/zen/v1/chat/completions";
+    url = "https://opencode.ai/inference/openai/v1/chat/completions";
     key = process.env.OPENCODE_API_KEY;
   } else if (config.provider === "ollama-cloud") {
     url = "https://ollama.com/v1/chat/completions";

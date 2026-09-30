@@ -30,6 +30,15 @@ type Report = {
 type Workforce = {
   config: Config;
   configured: boolean;
+  providers: {
+    id: Config["provider"];
+    name: string;
+    model: string;
+    configured: boolean;
+    tested: boolean;
+    active: boolean;
+    setup: string;
+  }[];
   workers: Worker[];
   requestsToday: number;
   report: Report[];
@@ -223,6 +232,53 @@ export function AiWorkforcePanel() {
           Ollama needs an always-on HTTPS server; Vercel does not run the model
           itself.
         </p>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {data.providers?.map((provider) => (
+            <div
+              key={provider.id}
+              className="rounded-lg border bg-card p-3 space-y-2"
+            >
+              <p className="font-medium text-sm">{provider.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {provider.active
+                  ? "Active workspace provider"
+                  : provider.configured
+                    ? "Credential saved · test to connect"
+                    : "Setup required"}
+              </p>
+              <p className="text-xs break-all">{provider.model}</p>
+              {!provider.configured && (
+                <p className="text-xs text-muted-foreground break-all">
+                  Server setup: {provider.setup}
+                </p>
+              )}
+              <Button
+                size="sm"
+                variant={
+                  config.provider === provider.id ? "default" : "outline"
+                }
+                disabled={!editable || busy || config.provider === provider.id}
+                onClick={() =>
+                  setConfig({
+                    ...config,
+                    provider: provider.id,
+                    model: provider.model,
+                    enabled: false,
+                  })
+                }
+              >
+                {config.provider === provider.id
+                  ? "Selected"
+                  : "Select provider"}
+              </Button>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Each provider keeps its last saved model. Select, test, enable and
+          save to switch all workers and the PA. Only one workspace provider is
+          active at a time; each provider needs its own server connection.
+        </p>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="text-sm space-y-2">
             <span>Provider</span>
@@ -234,14 +290,17 @@ export function AiWorkforcePanel() {
                 setConfig({
                   ...config,
                   provider: e.target.value as Config["provider"],
-                  model: (
-                    {
-                      openrouter: "qwen/qwen3.8-27b:free",
-                      ollama: "qwen3:8b",
-                      "ollama-cloud": "gemma4:31b",
-                      opencode: "longcat-2.5-preview-free",
-                    } as Record<string, string>
-                  )[e.target.value],
+                  model:
+                    data.providers?.find((p) => p.id === e.target.value)
+                      ?.model ??
+                    (
+                      {
+                        openrouter: "qwen/qwen3.8-27b:free",
+                        ollama: "qwen3:8b",
+                        "ollama-cloud": "gemma4:31b",
+                        opencode: "longcat-2.5-preview-free",
+                      } as Record<string, string>
+                    )[e.target.value],
                   enabled: false,
                 })
               }
@@ -249,7 +308,7 @@ export function AiWorkforcePanel() {
               <option value="openrouter">OpenRouter · free models only</option>
               <option value="ollama">Self-hosted Ollama</option>
               <option value="ollama-cloud">Ollama Cloud</option>
-              <option value="opencode">OpenCode Zen · free models only</option>
+              <option value="opencode">OpenCode · free models only</option>
             </select>
           </label>
           <label className="text-sm space-y-2">
