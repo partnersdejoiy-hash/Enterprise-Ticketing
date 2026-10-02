@@ -287,7 +287,7 @@ router.post(
         return;
       }
 
-      const testTo = req.body.to || req.user!.email;
+      const testTo = req.body?.to || req.user!.email;
       const transporter = nodemailer.createTransport({
         host: acc.smtpHost,
         port: acc.smtpPort ?? 587,
