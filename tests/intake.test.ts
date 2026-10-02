@@ -30,7 +30,8 @@ test("website intake, durable retries, private evidence and authenticated staff 
   for (const file of [
     "003_ai_workforce.sql",
     "004_ticket_deletion.sql",
-    "004_ticket_deletion.sql",
+    "005_ai_team_chat.sql",
+    "006_agent_assignment.sql",
   ])
     await pg.exec(
       await readFile(new URL("../migrations/" + file, import.meta.url), "utf8"),

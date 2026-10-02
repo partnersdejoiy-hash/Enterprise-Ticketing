@@ -1,5 +1,6 @@
 import { classifyTeam } from "../lib/team-classifier.js";
 import { runAutomations } from "../lib/automation.js";
+import { autoAssignTicket } from "../lib/agentAssignment.js";
 import { rateLimit, escapeHtml } from "../lib/security.js";
 import { randomBytes } from "node:crypto";
 import { Router } from "express";
@@ -127,7 +128,8 @@ router.post("/public/request", async (req, res) => {
       .filter((v) => v !== undefined && v !== null && v !== "")
       .join("\n");
 
-    // Auto-assign to the department member with the fewest open tickets
+    // Unified auto-assignment: least-loaded agent/AI worker in the
+    // department, hard-capped at 3 active tickets each.
     let autoAssigneeId: number | null = null;
 
     const [ticket] = await db
@@ -147,6 +149,15 @@ router.post("/public/request", async (req, res) => {
         slaDeadline,
       } as any)
       .returning();
+
+    if (ticket && resolvedDeptId) {
+      const assignment = await autoAssignTicket(
+        ticket.id,
+        resolvedDeptId,
+        createdById,
+      );
+      if (assignment.kind === "human") autoAssigneeId = assignment.id;
+    }
 
     if (ticket) {
       Object.assign(

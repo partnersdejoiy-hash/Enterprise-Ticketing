@@ -114,16 +114,19 @@ test("send email as AI agent: per-agent from addresses", async () => {
 
   // From-address format: slug = lowercase, non-alphanumeric stripped.
   assert.deepEqual(getAgentFromAddress("Mew"), {
-    email: "agent-mew@dejoiy.com",
+    email: "mew-orbitdesk@dejoiy.com",
     name: "Mew · OrbitDesk AI",
   });
   assert.equal(
     getAgentFromAddress("Dark Volt").email,
-    "agent-darkvolt@dejoiy.com",
+    "darkvolt-orbitdesk@dejoiy.com",
   );
-  assert.equal(getAgentFromAddress("BUZZ").email, "agent-buzz@dejoiy.com");
-  assert.equal(getAgentFromAddress("R2-D2!").email, "agent-r2d2@dejoiy.com");
-  assert.equal(getAgentFromAddress("").email, "agent-agent@dejoiy.com");
+  assert.equal(getAgentFromAddress("BUZZ").email, "buzz-orbitdesk@dejoiy.com");
+  assert.equal(
+    getAgentFromAddress("R2-D2!").email,
+    "r2d2-orbitdesk@dejoiy.com",
+  );
+  assert.equal(getAgentFromAddress("").email, "agent-orbitdesk@dejoiy.com");
 
   // Endpoint requires auth.
   assert.equal(
@@ -214,8 +217,11 @@ test("send email as AI agent: per-agent from addresses", async () => {
   const sent = sentEmails()[0];
   assert.equal(sent.to, "client@example.com");
   assert.equal(sent.subject, "Hello");
-  assert.equal(sent.from, '"Buzz · OrbitDesk AI" <agent-buzz@dejoiy.com>');
-  assert.equal(sent.replyTo, '"Buzz · OrbitDesk AI" <agent-buzz@dejoiy.com>');
+  assert.equal(sent.from, '"Buzz · OrbitDesk AI" <buzz-orbitdesk@dejoiy.com>');
+  assert.equal(
+    sent.replyTo,
+    '"Buzz · OrbitDesk AI" <buzz-orbitdesk@dejoiy.com>',
+  );
   r = await request(`/ai/chat/threads/${threadId}`, "GET", undefined, agent);
   const msgs = (await r.json()).messages;
   const last = msgs[msgs.length - 1];

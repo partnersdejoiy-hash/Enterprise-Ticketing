@@ -24,7 +24,7 @@ export interface AgentFromAddress {
 
 /**
  * Per-agent sender identity for AI team chat email, e.g. "Mew" ->
- * { email: "agent-mew@dejoiy.com", name: "Mew · OrbitDesk AI" }.
+ * { email: "mew-orbitdesk@dejoiy.com", name: "Mew · OrbitDesk AI" }.
  * Requires the dejoiy.com domain to be a verified identity in the
  * SMTP provider (e.g. Amazon SES) for delivery to succeed.
  */
@@ -32,7 +32,7 @@ export function getAgentFromAddress(workerName: string): AgentFromAddress {
   const display = (workerName || "").trim() || "Agent";
   const slug = display.toLowerCase().replace(/[^a-z0-9]/g, "") || "agent";
   return {
-    email: `agent-${slug}@dejoiy.com`,
+    email: `${slug}-orbitdesk@dejoiy.com`,
     name: `${display} · OrbitDesk AI`,
   };
 }
@@ -406,3 +406,28 @@ export async function saveEmailConfig(
 }
 
 export { getEmailConfig };
+
+/**
+ * Send an email as an AI agent (e.g. "Mew" -> "mew-orbitdesk@dejoiy.com").
+ * Never throws: if email is not configured the send is skipped with a
+ * console warning, so automatic agent emails can never break ticket flows.
+ */
+export async function sendAgentEmail(
+  workerName: string,
+  to: string,
+  subject: string,
+  htmlBody: string,
+): Promise<void> {
+  const from = getAgentFromAddress(workerName);
+  try {
+    await sendEmail(to, subject, htmlBody, undefined, undefined, {
+      fromEmail: from.email,
+      fromName: from.name,
+    });
+  } catch (err) {
+    console.warn(
+      `[agent-email] ${from.email} -> ${to} skipped:`,
+      (err as Error)?.message ?? err,
+    );
+  }
+}

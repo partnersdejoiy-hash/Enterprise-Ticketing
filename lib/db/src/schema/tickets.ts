@@ -35,6 +35,7 @@ export const ticketsTable = pgTable("tickets", {
   priority: ticketPriorityEnum("priority").notNull().default("medium"),
   departmentId: integer("department_id"),
   assigneeId: integer("assignee_id"),
+  assignedAiWorkerId: integer("assigned_ai_worker_id"),
   createdById: integer("created_by_id").notNull(),
   tags: text("tags").array().notNull().default([]),
   slaBreached: boolean("sla_breached").notNull().default(false),

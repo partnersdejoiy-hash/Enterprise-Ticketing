@@ -10,6 +10,10 @@ test("first login, reporting hierarchy, employee links and IT boundaries", async
     "000_initial_schema",
     "001_secure_intake",
     "002_hierarchy",
+    "003_ai_workforce",
+    "004_ticket_deletion",
+    "005_ai_team_chat",
+    "006_agent_assignment",
   ])
     await pg.exec(await readFile(`migrations/${name}.sql`, "utf8"));
   const socket = new PGLiteSocketServer({

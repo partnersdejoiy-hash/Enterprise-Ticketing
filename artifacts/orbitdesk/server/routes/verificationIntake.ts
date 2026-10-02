@@ -1,6 +1,11 @@
 import { notifyTicket } from "../lib/ticket-notifications.js";
 import { getRoutingSettings } from "../lib/workspace-settings.js";
 import { runAutomations } from "../lib/automation.js";
+import {
+  findAssignmentCandidateWith,
+  sendAssignmentEmail,
+  type AssignmentCandidate,
+} from "../lib/agentAssignment.js";
 import { Router } from "express";
 import { createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
@@ -179,13 +184,11 @@ router.post("/integrations/business-site/verification", async (req, res) => {
         return;
       }
       if (existing.rows[0].ticket_id === null) {
-        res
-          .status(410)
-          .json({
-            error:
-              "This request was deleted by an administrator. Submit a new request if needed.",
-            code: "REQUEST_DELETED",
-          });
+        res.status(410).json({
+          error:
+            "This request was deleted by an administrator. Submit a new request if needed.",
+          code: "REQUEST_DELETED",
+        });
         return;
       }
       res.json({
@@ -211,15 +214,16 @@ router.post("/integrations/business-site/verification", async (req, res) => {
           ).rows[0]
         : undefined;
     if (configuredId && !dept) throw new Error("Invalid configured department");
-    let assigneeId: number | null = null;
+    let assignment: AssignmentCandidate | null = null;
     if (dept && routing.autoAssign) {
       await client.query("SELECT pg_advisory_xact_lock(842198,$1)", [dept.id]);
-      const owner = await client.query(
-        `SELECT u.id FROM users u LEFT JOIN tickets t ON t.assignee_id=u.id AND t.status NOT IN ('resolved','closed')
-        WHERE u.department_id=$1 AND u.is_active AND u.role IN ('agent','manager') GROUP BY u.id ORDER BY count(t.id),u.id LIMIT 1`,
-        [dept.id],
+      // Unified assignment: least-loaded human agent/manager or AI worker in
+      // the department, hard-capped at 3 active tickets each. Uses this
+      // transaction's own client to avoid pool contention.
+      assignment = await findAssignmentCandidateWith(
+        (text, params) => client.query(text, params),
+        dept.id,
       );
-      assigneeId = owner.rows[0]?.id ?? null;
     }
     const number = `DJ-${bgv ? "BGV" : "EV"}-${randomBytes(8).toString("hex").toUpperCase()}`;
     const description = `Source: business.dejoiy.com\nRequesting company: ${b.company}\nBusiness email: ${b.email}\nEmployee name: ${b.employeeName}\nEmployee ID: ${b.employeeId || "Not provided"}\n\nPurpose and scope:\n${b.purpose}\n\nSubmission permission and privacy notice acknowledged. Authorisation requires staff review.`;
@@ -245,14 +249,21 @@ router.post("/integrations/business-site/verification", async (req, res) => {
         ],
       )
     ).rows[0];
-    if (assigneeId) {
-      await client.query(
-        "UPDATE tickets SET assignee_id=$1,status='assigned' WHERE id=$2",
-        [assigneeId, ticket.id],
-      );
+    if (assignment) {
+      if (assignment.kind === "human") {
+        await client.query(
+          "UPDATE tickets SET assignee_id=$1,status='assigned' WHERE id=$2",
+          [assignment.id, ticket.id],
+        );
+      } else {
+        await client.query(
+          "UPDATE tickets SET assigned_ai_worker_id=$1,status='assigned' WHERE id=$2",
+          [assignment.id, ticket.id],
+        );
+      }
       await client.query(
         "INSERT INTO ticket_history(ticket_id,action,new_value,changed_by_id) VALUES($1,'department_auto_assigned',$2,0)",
-        [ticket.id, String(assigneeId)],
+        [ticket.id, `${assignment.kind}:${assignment.id}`],
       );
     }
     const bytes = Buffer.from(b.attachment.content, "base64");
@@ -272,7 +283,9 @@ router.post("/integrations/business-site/verification", async (req, res) => {
     client.release();
     released = true;
     await runAutomations(ticket.id, ["ticket_created"]);
-    if (assigneeId) await notifyTicket(ticket.id, "assigned");
+    if (assignment?.kind === "human") await notifyTicket(ticket.id, "assigned");
+    if (assignment?.kind === "ai")
+      await sendAssignmentEmail(ticket.id, assignment);
     res
       .status(201)
       .json({ success: true, ticketNumber: number, duplicate: false });

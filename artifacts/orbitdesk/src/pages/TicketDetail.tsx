@@ -584,6 +584,12 @@ export default function TicketDetail() {
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1.5">
                     Assignee
                   </label>
+                  {(ticket as any).assignedAiWorkerId &&
+                    ticket.assigneeName && (
+                      <p className="text-xs text-muted-foreground mb-1.5">
+                        Auto-assigned to AI agent {ticket.assigneeName}
+                      </p>
+                    )}
                   <Select
                     disabled={!canAssign}
                     value={

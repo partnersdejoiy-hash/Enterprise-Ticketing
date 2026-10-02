@@ -11,6 +11,9 @@ test("AI workforce: access, persistence, private context, jobs, cancellation and
     "001_secure_intake.sql",
     "002_hierarchy.sql",
     "003_ai_workforce.sql",
+    "004_ticket_deletion.sql",
+    "005_ai_team_chat.sql",
+    "006_agent_assignment.sql",
   ])
     await pg.exec(
       await readFile(new URL("../migrations/" + f, import.meta.url), "utf8"),

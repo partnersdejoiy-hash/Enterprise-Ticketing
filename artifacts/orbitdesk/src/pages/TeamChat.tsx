@@ -681,7 +681,7 @@ export default function TeamChat() {
             </div>
             <p className="text-xs text-muted-foreground">
               This email will be sent from {threadTitle}&rsquo;s agent address (
-              {`agent-${(activeThread?.worker_name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")}@dejoiy.com`}
+              {`${(activeThread?.worker_name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")}-orbitdesk@dejoiy.com`}
               ). The message is posted to this chat once sent.
             </p>
           </div>

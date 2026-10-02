@@ -1,5 +1,9 @@
 import { notifyTicket } from "../lib/ticket-notifications.js";
 import { classifyTeam } from "../lib/team-classifier.js";
+import {
+  autoAssignTicket,
+  refillDepartmentQueue,
+} from "../lib/agentAssignment.js";
 import { getRoutingSettings } from "../lib/workspace-settings.js";
 import { runAutomations } from "../lib/automation.js";
 import { allowed } from "../lib/permissions.js";
@@ -101,11 +105,29 @@ function generateTicketNumber(): string {
   return `${prefix}-${num}`;
 }
 
+async function aiWorkerNameMap(ids: number[]): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return map;
+  const { rows } = await pool.query(
+    `SELECT id, name FROM orbit_ai_workers WHERE id = ANY($1)`,
+    [unique],
+  );
+  for (const r of rows) {
+    map.set(Number(r.id), String(r.name ?? "").trim() || "AI agent");
+  }
+  return map;
+}
+
 async function formatTicket(
   ticket: typeof ticketsTable.$inferSelect,
   users: Map<number, string>,
   depts: Map<number, string>,
+  workers?: Map<number, string>,
 ) {
+  const aiWorkerName = (ticket as any).assignedAiWorkerId
+    ? (workers?.get((ticket as any).assignedAiWorkerId) ?? "AI agent")
+    : null;
   return {
     id: ticket.id,
     ticketNumber: ticket.ticketNumber,
@@ -118,9 +140,12 @@ async function formatTicket(
       ? (depts.get(ticket.departmentId) ?? null)
       : null,
     assigneeId: ticket.assigneeId,
-    assigneeName: ticket.assigneeId
-      ? (users.get(ticket.assigneeId) ?? null)
-      : null,
+    assigneeName: aiWorkerName
+      ? `${aiWorkerName} (AI)`
+      : ticket.assigneeId
+        ? (users.get(ticket.assigneeId) ?? null)
+        : null,
+    assignedAiWorkerId: (ticket as any).assignedAiWorkerId ?? null,
     createdById: ticket.createdById,
     createdByName:
       ticket.createdById === 0
@@ -291,10 +316,18 @@ router.get(
       const commentMap = new Map(
         commentCounts.map((c) => [c.ticketId, c.count]),
       );
+      const workersMap = await aiWorkerNameMap(
+        tickets.map((t) => (t as any).assignedAiWorkerId),
+      );
 
       const formattedTickets = await Promise.all(
         tickets.map(async (t) => {
-          const formatted = await formatTicket(t, usersMap, deptsMap);
+          const formatted = await formatTicket(
+            t,
+            usersMap,
+            deptsMap,
+            workersMap,
+          );
           formatted.commentCount = commentMap.get(t.id) ?? 0;
           return formatted;
         }),
@@ -498,6 +531,24 @@ router.post(
         changedById: createdById,
       });
 
+      // Unified auto-assignment: least-loaded agent/AI worker in the
+      // department, hard-capped at 3 active tickets each.
+      if (!resolvedAssigneeId && departmentId) {
+        const assignment = await autoAssignTicket(
+          ticket.id,
+          departmentId,
+          createdById,
+        );
+        if (assignment.kind === "human") {
+          ticket.assigneeId = assignment.id;
+          ticket.status = "assigned";
+        } else if (assignment.kind === "ai") {
+          ticket.assigneeId = null;
+          (ticket as any).assignedAiWorkerId = assignment.id;
+          ticket.status = "assigned";
+        }
+      }
+
       Object.assign(
         ticket,
         (await runAutomations(ticket.id, ["ticket_created"])) || {},
@@ -522,7 +573,15 @@ router.post(
       const deptsMap = new Map<number, string>();
       if (departmentId && deptName) deptsMap.set(departmentId, deptName);
 
-      const formatted = await formatTicket(ticket, usersMap, deptsMap);
+      const workersMap = await aiWorkerNameMap([
+        (ticket as any).assignedAiWorkerId,
+      ]);
+      const formatted = await formatTicket(
+        ticket,
+        usersMap,
+        deptsMap,
+        workersMap,
+      );
 
       const isDocumentRequest =
         Array.isArray(tags) && tags.includes("document-request");
@@ -641,7 +700,15 @@ router.get(
       }
 
       const canHandle = await handlesTicket(req.user!, ticketId);
-      const formatted = await formatTicket(ticket, usersMap, deptsMap);
+      const workersMap = await aiWorkerNameMap([
+        (ticket as any).assignedAiWorkerId,
+      ]);
+      const formatted = await formatTicket(
+        ticket,
+        usersMap,
+        deptsMap,
+        workersMap,
+      );
       formatted.commentCount = commentCountRow?.count ?? 0;
 
       res.json({
@@ -909,7 +976,15 @@ router.patch(
         .select({ count: sql<number>`count(*)::int` })
         .from(commentsTable)
         .where(eq(commentsTable.ticketId, ticketId));
-      const formatted = await formatTicket(updated, usersMap, deptsMap);
+      const workersMap = await aiWorkerNameMap([
+        (updated as any).assignedAiWorkerId,
+      ]);
+      const formatted = await formatTicket(
+        updated,
+        usersMap,
+        deptsMap,
+        workersMap,
+      );
       formatted.commentCount = commentRow?.count ?? 0;
 
       const statusEntry = historyEntries.find(
@@ -928,6 +1003,16 @@ router.patch(
           createdByEmail: creatorRow?.email,
           raisedForEmail: (updated as any).raisedForEmail ?? undefined,
         }).catch(() => {});
+      }
+
+      // Refill trigger: a resolved/closed ticket frees a slot — assign the
+      // oldest waiting 'open' ticket(s) in the same department.
+      if (
+        statusEntry &&
+        ["resolved", "closed"].includes(statusEntry.newValue ?? "") &&
+        updated.departmentId
+      ) {
+        await refillDepartmentQueue(updated.departmentId, req.user!.id);
       }
 
       res.json(formatted);
