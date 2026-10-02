@@ -105,6 +105,21 @@ function generateTicketNumber(): string {
   return `${prefix}-${num}`;
 }
 
+// Cached check for the 006 migration column (AI-worker assignment).
+// Null = not checked yet; result is cached for the process lifetime.
+let hasAiWorkerColumn: boolean | null = null;
+async function aiWorkerColumnExists(): Promise<boolean> {
+  if (hasAiWorkerColumn === null) {
+    try {
+      await pool.query(`SELECT assigned_ai_worker_id FROM tickets LIMIT 0`, []);
+      hasAiWorkerColumn = true;
+    } catch {
+      hasAiWorkerColumn = false;
+    }
+  }
+  return hasAiWorkerColumn;
+}
+
 async function aiWorkerNameMap(ids: number[]): Promise<Map<number, string>> {
   const map = new Map<number, string>();
   const unique = [...new Set(ids.filter(Boolean))];
@@ -915,6 +930,11 @@ router.patch(
           });
           if (updates.status === undefined && existing.status === "open")
             updates.status = "assigned";
+          // Manual human assignment clears any AI-worker assignment so the
+          // two assignee fields stay mutually exclusive (guarded for pre-006 DBs).
+          if (await aiWorkerColumnExists()) {
+            (updates as any).assignedAiWorkerId = null;
+          }
         }
         updates.assigneeId = assigneeId;
       }

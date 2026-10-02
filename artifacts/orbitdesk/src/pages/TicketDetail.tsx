@@ -593,12 +593,18 @@ export default function TicketDetail() {
                   <Select
                     disabled={!canAssign}
                     value={
-                      ticket.assigneeId ? String(ticket.assigneeId) : "none"
+                      (ticket as any).assignedAiWorkerId
+                        ? "ai-worker"
+                        : ticket.assigneeId
+                          ? String(ticket.assigneeId)
+                          : "none"
                     }
                     onValueChange={(v) =>
                       handleUpdateField(
                         "assigneeId",
-                        v === "none" ? null : parseInt(v),
+                        v === "none" || v === "ai-worker"
+                          ? null
+                          : parseInt(v),
                       )
                     }
                   >
@@ -607,6 +613,12 @@ export default function TicketDetail() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Unassigned</SelectItem>
+                      {(ticket as any).assignedAiWorkerId &&
+                        ticket.assigneeName && (
+                          <SelectItem value="ai-worker" disabled>
+                            {ticket.assigneeName} (AI) — auto-assigned
+                          </SelectItem>
+                        )}
                       {(users ?? [])
                         .filter(
                           (u) =>
