@@ -234,7 +234,7 @@ export async function sendAssignmentEmail(
     ``,
     `Good news — ${candidate.name}, an AI agent on our ${deptName} team, has picked up your ticket #${ticket.ticketNumber} ("${ticket.subject}") and started working on it.`,
     ``,
-    `If you reply to this email, please keep the ticket number in the subject line so we can route your message to the right ticket.`,
+    `We'll keep you posted on progress.`,
     ``,
     `— ${candidate.name} · OrbitDesk AI`,
   ];
