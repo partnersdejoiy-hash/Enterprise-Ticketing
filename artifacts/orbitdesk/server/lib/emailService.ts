@@ -15,6 +15,33 @@ export interface EmailConfig {
 const DEFAULT_FROM_EMAIL = "noreply.notifications@dejoiy.com";
 const DEFAULT_FROM_NAME = "OrbitDesk by Dejoiy";
 
+export const EMAIL_NOT_CONFIGURED_ERROR = "Email service is not configured";
+
+export interface AgentFromAddress {
+  email: string;
+  name: string;
+}
+
+/**
+ * Per-agent sender identity for AI team chat email, e.g. "Mew" ->
+ * { email: "agent-mew@dejoiy.com", name: "Mew · OrbitDesk AI" }.
+ * Requires the dejoiy.com domain to be a verified identity in the
+ * SMTP provider (e.g. Amazon SES) for delivery to succeed.
+ */
+export function getAgentFromAddress(workerName: string): AgentFromAddress {
+  const display = (workerName || "").trim() || "Agent";
+  const slug = display.toLowerCase().replace(/[^a-z0-9]/g, "") || "agent";
+  return {
+    email: `agent-${slug}@dejoiy.com`,
+    name: `${display} · OrbitDesk AI`,
+  };
+}
+
+export interface SendEmailOptions {
+  fromEmail?: string;
+  fromName?: string;
+}
+
 async function getEmailConfig(): Promise<EmailConfig> {
   try {
     // First: try primary account from email_accounts table
@@ -137,11 +164,14 @@ export async function sendEmail(
   html: string,
   attachments?: EmailAttachmentInput[],
   cc?: string | string[],
+  opts?: SendEmailOptions,
 ): Promise<void> {
   const cfg = await getEmailConfig();
   if (!cfg.enabled || !cfg.host) {
-    throw new Error("Email service is not configured");
+    throw new Error(EMAIL_NOT_CONFIGURED_ERROR);
   }
+  const fromEmail = opts?.fromEmail?.trim() || cfg.fromEmail;
+  const fromName = opts?.fromName?.trim() || cfg.fromName;
   try {
     const transporter = createTransporter(cfg);
     const recipients = Array.isArray(to) ? to.join(", ") : to;
@@ -150,10 +180,10 @@ export async function sendEmail(
         ? cc.join(", ")
         : cc
       : undefined;
-    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${cfg.fromEmail.split("@")[1] || "orbitdesk.app"}>`;
+    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${fromEmail.split("@")[1] || "orbitdesk.app"}>`;
     await transporter.sendMail({
-      from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
-      replyTo: `"${cfg.fromName}" <${cfg.fromEmail}>`,
+      from: `"${fromName}" <${fromEmail}>`,
+      replyTo: `"${fromName}" <${fromEmail}>`,
       to: recipients,
       ...(ccRecipients ? { cc: ccRecipients } : {}),
       subject,
@@ -162,7 +192,7 @@ export async function sendEmail(
         "X-Mailer": "OrbitDesk by Dejoiy",
         "X-Priority": "3",
         Precedence: "bulk",
-        "List-Unsubscribe": `<mailto:${cfg.fromEmail}?subject=unsubscribe>`,
+        "List-Unsubscribe": `<mailto:${fromEmail}?subject=unsubscribe>`,
       },
       text: htmlToText(html),
       html,

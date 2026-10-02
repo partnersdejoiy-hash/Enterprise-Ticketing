@@ -26,6 +26,7 @@ import {
   Loader2,
   Trash2,
   Sparkles,
+  Mail,
 } from "lucide-react";
 
 interface BotInfo {
@@ -108,6 +109,11 @@ export default function TeamChat() {
   const [huddleBots, setHuddleBots] = useState<number[]>([]);
   const [huddleTopic, setHuddleTopic] = useState("");
   const [startingHuddle, setStartingHuddle] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refreshThreads = useCallback(async () => {
@@ -279,6 +285,35 @@ export default function TeamChat() {
     }
   };
 
+  const sendEmailAsBot = async () => {
+    if (activeId == null || sendingEmail) return;
+    setSendingEmail(true);
+    try {
+      await api(`/ai/chat/threads/${activeId}/email`, {
+        method: "POST",
+        body: JSON.stringify({
+          to: emailTo,
+          subject: emailSubject,
+          body: emailBody,
+        }),
+      });
+      setEmailOpen(false);
+      setEmailTo("");
+      setEmailSubject("");
+      setEmailBody("");
+      toast({ title: "Email sent" });
+      openThread(activeId);
+    } catch (e: any) {
+      toast({
+        title: "Could not send email",
+        description: e.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const filteredBots = bots.filter((b) =>
     `${b.name} ${b.department ?? ""} ${b.role}`
       .toLowerCase()
@@ -445,14 +480,26 @@ export default function TeamChat() {
                         {threadSubtitle}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={deleteThread}
-                      title="Delete chat"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {activeThread.kind === "direct" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEmailOpen(true)}
+                          title="Send email as bot"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={deleteThread}
+                        title="Delete chat"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <ScrollArea className="flex-1 h-[440px] p-4">
@@ -593,6 +640,68 @@ export default function TeamChat() {
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               )}
               Start huddle
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send email as {threadTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <div className="text-sm font-medium mb-1">To</div>
+              <Input
+                placeholder="recipient@example.com"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                maxLength={320}
+              />
+            </div>
+            <div>
+              <div className="text-sm font-medium mb-1">Subject</div>
+              <Input
+                placeholder="Subject"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+            <div>
+              <div className="text-sm font-medium mb-1">Message</div>
+              <Textarea
+                placeholder="Write the email…"
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                maxLength={20000}
+                rows={6}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This email will be sent from {threadTitle}&rsquo;s agent address (
+              {`agent-${(activeThread?.worker_name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")}@dejoiy.com`}
+              ). The message is posted to this chat once sent.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={sendEmailAsBot}
+              disabled={
+                sendingEmail ||
+                !emailTo.trim() ||
+                !emailSubject.trim() ||
+                !emailBody.trim()
+              }
+            >
+              {sendingEmail && (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              )}
+              Send email
             </Button>
           </DialogFooter>
         </DialogContent>

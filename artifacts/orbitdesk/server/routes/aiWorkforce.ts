@@ -39,6 +39,11 @@ import {
   readJsonSetting,
   writeJsonSetting,
 } from "../lib/workspace-settings.js";
+import {
+  EMAIL_NOT_CONFIGURED_ERROR,
+  getAgentFromAddress,
+  sendEmail,
+} from "../lib/emailService.js";
 const router = Router();
 router.use("/ai", authMiddleware);
 const superadmin = (req: AuthenticatedRequest, res: any, next: any) => {
@@ -525,6 +530,89 @@ router.post(
       }
     }
     await runHuddleRound(config, threadId, userName, userId);
+    res.json({ ok: true });
+  },
+);
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const SINGLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Send an email as the 1:1 agent of a direct chat thread.
+ * Deliberately separate from ticket notifications: no AI call, no quota use.
+ */
+router.post(
+  "/ai/chat/threads/:id/email",
+  async (req: AuthenticatedRequest, res) => {
+    const threadId = Number(req.params.id);
+    if (
+      !Number.isInteger(threadId) ||
+      !(await threadOwnedBy(threadId, req.user!.id))
+    )
+      return void res.status(404).json({ error: "Thread not found." });
+    const threads = await listThreads(req.user!.id);
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread)
+      return void res.status(404).json({ error: "Thread not found." });
+    if (thread.kind !== "direct" || !thread.worker_id)
+      return void res.status(400).json({
+        error:
+          "Emails can only be sent from a 1:1 agent chat, not from a huddle.",
+      });
+
+    const to = typeof req.body?.to === "string" ? req.body.to.trim() : "";
+    const subject =
+      typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
+    const body = typeof req.body?.body === "string" ? req.body.body : "";
+    if (!SINGLE_EMAIL_RE.test(to))
+      return void res
+        .status(400)
+        .json({ error: "Enter a valid recipient email address." });
+    if (!subject || subject.length > 200)
+      return void res
+        .status(400)
+        .json({ error: "Enter a subject up to 200 characters." });
+    if (!body.trim() || body.length > 20000)
+      return void res
+        .status(400)
+        .json({ error: "Enter an email body up to 20,000 characters." });
+
+    const roster = await chatRoster();
+    const bot = roster.find((w) => w.id === thread.worker_id);
+    const workerName = bot
+      ? botDisplayName(bot)
+      : botDisplayName({
+          name: thread.worker_name ?? "",
+          kind: (thread.worker_kind as ChatWorker["kind"]) ?? "draft",
+        });
+    const from = getAgentFromAddress(workerName);
+    const html = escapeHtml(body).replace(/\n/g, "<br>");
+    try {
+      await sendEmail(to, subject, html, undefined, undefined, {
+        fromEmail: from.email,
+        fromName: from.name,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === EMAIL_NOT_CONFIGURED_ERROR)
+        return void res.status(503).json({
+          error:
+            "Email is not configured yet. Connect an SMTP account in Settings → Email Accounts.",
+        });
+      return void res.status(503).json({ error: "Email delivery failed" });
+    }
+    await postMessage({
+      threadId,
+      sender: "bot",
+      workerId: thread.worker_id,
+      content: `Email sent to ${to} — "${subject}"`,
+    });
     res.json({ ok: true });
   },
 );
