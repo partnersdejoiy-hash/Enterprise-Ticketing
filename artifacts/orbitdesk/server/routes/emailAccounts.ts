@@ -303,7 +303,7 @@ router.post(
       });
       res.json({ message: `Test email sent to ${testTo}` });
     } catch (err: any) {
-      console.error(`[test-smtp] account ${id} failed:`, err?.message, err?.code ? `code=${err.code}` : "", err?.response ? `response=${err.response}` : "");
+      console.error("[test-smtp] failed:", err?.message, err?.code ? `code=${err.code}` : "", err?.response ? `response=${err.response}` : "");
       res.status(500).json({ error: "SMTP test failed", details: err.message });
     }
   },
