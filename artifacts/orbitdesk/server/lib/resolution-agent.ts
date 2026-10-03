@@ -7,8 +7,7 @@
  * approval. Never runs shell commands or arbitrary operations.
  */
 
-import { pool } from "@workspace/db";
-import type { usersTable } from "@workspace/db";
+import { pool, db, eq, usersTable } from "@workspace/db";
 import { runAnalysis, proposeRecommendation } from "./orbit-ai.js";
 import { emitEvent, EventTypes } from "./orbit-events.js";
 import { canAccessTicket, handlesTicket } from "./ticket-access.js";
@@ -26,11 +25,15 @@ function httpError(status: number, message: string): Error & { status: number } 
 }
 
 async function loadUser(userId: number): Promise<UserRow> {
-  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [
-    userId,
-  ]);
-  if (!rows[0]) throw httpError(404, "User not found");
-  return rows[0] as UserRow;
+  // Use drizzle (not SELECT *) so the row has camelCase fields
+  // (departmentId, isActive) that ticket-access helpers expect.
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  if (!user) throw httpError(404, "User not found");
+  return user;
 }
 
 async function resolveTenantId(): Promise<number | null> {
@@ -120,7 +123,7 @@ interface KbHit {
 async function findKbArticles(subject: string): Promise<KbHit[]> {
   const keywords = extractKeywords(subject).slice(0, 10).join(" ");
   if (!keywords) return [];
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{ id: number; title: string }>(
     `SELECT id, title FROM knowledge_articles
      WHERE status = 'published' AND searchable AND deleted_at IS NULL
        AND to_tsvector('english', title || ' ' || content)
@@ -128,7 +131,7 @@ async function findKbArticles(subject: string): Promise<KbHit[]> {
      LIMIT 5`,
     [keywords],
   );
-  return rows.map((r) => ({ id: r.id as number, title: String(r.title) }));
+  return rows.map((r: { id: number; title: string }) => ({ id: r.id, title: r.title }));
 }
 
 const RESOLUTION_SYSTEM_PROMPT = `You are an IT support resolution planner. Draft a resolution plan for the ticket described below, grounded ONLY in the provided trusted context (similar resolved tickets and knowledge articles).

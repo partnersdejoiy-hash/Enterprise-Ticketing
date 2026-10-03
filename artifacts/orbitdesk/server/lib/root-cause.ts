@@ -163,7 +163,11 @@ export interface ClusterView {
  */
 export async function detectClusters(actorId: number): Promise<ClusterView[]> {
   await requireStaffUser(actorId);
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{
+    id: number;
+    ticket_number: string;
+    subject: string;
+  }>(
     `SELECT id, ticket_number, subject, department_id
      FROM tickets
      WHERE created_at >= now() - interval '30 days'
@@ -171,7 +175,10 @@ export async function detectClusters(actorId: number): Promise<ClusterView[]> {
      LIMIT 500`,
   );
   const clusters = clusterTickets(
-    rows.map((r) => ({ id: r.id as number, subject: String(r.subject ?? "") })),
+    rows.map((r: { id: number; subject: string }) => ({
+      id: r.id,
+      subject: String(r.subject ?? ""),
+    })),
   );
   const byId = new Map<number, { ticket_number: string; subject: string }>();
   for (const r of rows) {
@@ -222,7 +229,16 @@ export async function proposeRootCause(
   );
   if (ids.length === 0) throw httpError(400, "No valid ticket ids provided");
 
-  const { rows: tickets } = await pool.query(
+interface ClusterTicketRow {
+  id: number;
+  ticket_number: string;
+  subject: string;
+  description: string | null;
+  created_at: string;
+  department_name: string | null;
+}
+
+  const { rows: tickets } = await pool.query<ClusterTicketRow>(
     `SELECT t.id, t.ticket_number, t.subject, t.description, t.created_at,
             d.name AS department_name
      FROM tickets t LEFT JOIN departments d ON d.id = t.department_id
@@ -245,7 +261,10 @@ export async function proposeRootCause(
   const title = `Potential recurring issue: ${topKeywords.join(", ") || "unclassified"}`;
 
   // Find-or-create the problem row.
-  const { rows: existing } = await pool.query(
+  const { rows: existing } = await pool.query<{
+    id: number;
+    problem_number: string;
+  }>(
     `SELECT id, problem_number FROM problems
      WHERE tenant_id IS NOT DISTINCT FROM $1 AND title = $2 AND status = 'open'
      LIMIT 1`,
@@ -261,7 +280,7 @@ export async function proposeRootCause(
       user.tenantId,
       title,
       `Candidate recurring-issue cluster of ${tickets.length} ticket(s): ${tickets
-        .map((t) => t.ticket_number)
+        .map((t: ClusterTicketRow) => t.ticket_number)
         .join(", ")}`,
       actorId,
     );
@@ -270,10 +289,10 @@ export async function proposeRootCause(
   }
 
   const createdTimes = tickets
-    .map((t) => new Date(t.created_at).getTime())
-    .filter((n) => !Number.isNaN(n));
+    .map((t: ClusterTicketRow) => new Date(t.created_at).getTime())
+    .filter((n: number) => !Number.isNaN(n));
   const departments = [
-    ...new Set(tickets.map((t) => t.department_name).filter(Boolean)),
+    ...new Set(tickets.map((t: ClusterTicketRow) => t.department_name).filter(Boolean)),
   ];
   const systemPrompt = `You are performing probabilistic root-cause analysis on a cluster of support tickets.
 
@@ -306,7 +325,7 @@ Rules:
       return !!rows[0] && STAFF_ROLES.includes(rows[0].role);
     },
     systemPrompt,
-    untrustedInputs: tickets.map((t) => ({
+    untrustedInputs: tickets.map((t: ClusterTicketRow) => ({
       label: `ticket_${t.id}`,
       text: `Ticket ${t.ticket_number} (id ${t.id}):\nSubject: ${t.subject}\nDescription: ${(t.description ?? "").slice(0, 2000)}`,
     })),
@@ -321,7 +340,7 @@ Rules:
           : null,
       },
       departments,
-      ticket_ids: tickets.map((t) => t.id),
+      ticket_ids: tickets.map((t: ClusterTicketRow) => t.id),
     },
     maxTokens: 1500,
   });

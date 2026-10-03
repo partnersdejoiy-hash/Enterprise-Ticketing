@@ -16,10 +16,12 @@ import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 
 // ---------------------------------------------------------------------------
 // Part 1: pure functions. The pool is lazy — it never connects for these.
+//
+// IMPORTANT: DATABASE_URL must point at the PGlite socket BEFORE the first
+// import, because @workspace/db creates its Pool at module load time.
 // ---------------------------------------------------------------------------
-process.env.DATABASE_URL =
-  process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@127.0.0.1:1/postgres";
+const TEST_DB_PORT = Number(process.env.INTELLIGENCE_TEST_PORT ?? 5571);
+process.env.DATABASE_URL = `postgres://postgres:postgres@127.0.0.1:${TEST_DB_PORT}/postgres`;
 process.env.NODE_ENV = "test";
 
 const rc = await import(
@@ -114,27 +116,34 @@ test("detectSpike: exactly 1.5x is not a spike (strict threshold)", () => {
 // ---------------------------------------------------------------------------
 // Part 2: approval gating against PGlite.
 // ---------------------------------------------------------------------------
+const stage = (m: string) => process.stderr.write(`[stage] ${m}\n`);
+stage("pglite create");
 const pg = await PGlite.create();
+stage("pglite created");
 const migrationFiles = (await readdir("migrations"))
   .filter((f) => f.endsWith(".sql"))
   .sort();
 for (const f of migrationFiles) {
+  stage(`loading ${f}`);
   await pg.exec(await readFile(`migrations/${f}`, "utf8"));
 }
-const TEST_DB_PORT = Number(process.env.INTELLIGENCE_TEST_PORT ?? 5571);
+stage("migrations loaded");
 const socket = new PGLiteSocketServer({
   db: pg,
   port: TEST_DB_PORT,
   host: "127.0.0.1",
   maxConnections: 30,
 });
+stage("socket start");
 await socket.start();
-process.env.DATABASE_URL = `postgres://postgres:postgres@127.0.0.1:${TEST_DB_PORT}/postgres`;
-
+stage("socket started");
+stage("importing db");
 const { pool } = await import("../lib/db/src/index.ts");
+stage("db imported");
 const ra = await import(
   "../artifacts/orbitdesk/server/lib/resolution-agent.ts"
 );
+stage("ra imported");
 
 async function fixtures() {
   const { rows: deptRows } = await pool.query(
