@@ -11,12 +11,19 @@ export const aiDefaults = {
     | "openrouter"
     | "ollama"
     | "ollama-cloud"
-    | "opencode",
+    | "opencode"
+    | "ai-gateway",
   model: "qwen/qwen3.8-27b:free",
   dailyLimit: 40,
   revision: 1,
 };
 export type AiConfig = typeof aiDefaults;
+// Logical models served by the DEJOIY AI Gateway (see AI_GATEWAY_URL).
+export const AI_GATEWAY_MODELS = [
+  "kaali-fast",
+  "kaali-smart",
+  "kaali-premium",
+] as const;
 export const aiProviderCatalog = [
   {
     id: "openrouter",
@@ -41,6 +48,12 @@ export const aiProviderCatalog = [
     name: "Self-hosted Ollama",
     model: "qwen3:8b",
     setup: "ORBIT_OLLAMA_URL + ORBIT_OLLAMA_TOKEN",
+  },
+  {
+    id: "ai-gateway",
+    name: "DEJOIY AI Gateway",
+    model: "kaali-fast",
+    setup: "AI_GATEWAY_URL + AI_GATEWAY_KEY",
   },
 ] as const;
 export async function getAiProviders(config: AiConfig) {
@@ -93,6 +106,8 @@ export function providerConfigured(config: AiConfig) {
       return !!process.env.OLLAMA_API_KEY;
     case "ollama":
       return !!process.env.ORBIT_OLLAMA_URL && !!process.env.ORBIT_OLLAMA_TOKEN;
+    case "ai-gateway":
+      return !!process.env.AI_GATEWAY_URL && !!process.env.AI_GATEWAY_KEY;
     default:
       return false;
   }
@@ -102,11 +117,15 @@ export function validAiConfig(value: unknown): value is AiConfig {
   return (
     !!c &&
     typeof c.enabled === "boolean" &&
-    ["openrouter", "ollama", "ollama-cloud", "opencode"].includes(c.provider) &&
+    ["openrouter", "ollama", "ollama-cloud", "opencode", "ai-gateway"].includes(
+      c.provider,
+    ) &&
     typeof c.model === "string" &&
     /^[a-zA-Z0-9_./:-]{2,120}$/.test(c.model) &&
     (c.provider !== "openrouter" || c.model.endsWith(":free")) &&
     (c.provider !== "opencode" || OPENCODE_FREE_MODELS.includes(c.model)) &&
+    (c.provider !== "ai-gateway" ||
+      (AI_GATEWAY_MODELS as readonly string[]).includes(c.model)) &&
     Number.isInteger(c.dailyLimit) &&
     c.dailyLimit >= 1 &&
     c.dailyLimit <= 50
@@ -133,6 +152,16 @@ export async function completeAi(
   if (config.provider === "openrouter") {
     if (!config.model.endsWith(":free"))
       throw new AiUnavailable("Only free model variants are permitted.");
+  } else if (config.provider === "ai-gateway") {
+    // DEJOIY AI Gateway: drop-in replacement with automatic failover across
+    // Groq, Gemini, Pollinations, etc. Same call shape, logical model name.
+    const gwUrl = (process.env.AI_GATEWAY_URL || "").replace(/\/$/, "");
+    if (!gwUrl || !process.env.AI_GATEWAY_KEY)
+      throw new AiUnavailable(
+        "Setup required: set AI_GATEWAY_URL and AI_GATEWAY_KEY in Vercel.",
+      );
+    url = `${gwUrl}/v1/chat/completions`;
+    key = process.env.AI_GATEWAY_KEY;
   } else if (config.provider === "opencode") {
     url = "https://opencode.ai/inference/openai/v1/chat/completions";
     key = process.env.OPENCODE_API_KEY;

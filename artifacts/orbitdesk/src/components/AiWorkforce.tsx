@@ -13,7 +13,7 @@ type Worker = {
 };
 type Config = {
   enabled: boolean;
-  provider: "openrouter" | "ollama" | "ollama-cloud" | "opencode";
+  provider: "openrouter" | "ollama" | "ollama-cloud" | "opencode" | "ai-gateway";
   model: string;
   dailyLimit: number;
 };
@@ -299,6 +299,7 @@ export function AiWorkforcePanel() {
                         ollama: "qwen3:8b",
                         "ollama-cloud": "gemma4:31b",
                         opencode: "longcat-2.5-preview-free",
+                        "ai-gateway": "kaali-fast",
                       } as Record<string, string>
                     )[e.target.value],
                   enabled: false,
@@ -306,6 +307,7 @@ export function AiWorkforcePanel() {
               }
             >
               <option value="openrouter">OpenRouter · free models only</option>
+              <option value="ai-gateway">DEJOIY AI Gateway · auto-failover</option>
               <option value="ollama">Self-hosted Ollama</option>
               <option value="ollama-cloud">Ollama Cloud</option>
               <option value="opencode">OpenCode · free models only</option>
@@ -327,7 +329,9 @@ export function AiWorkforcePanel() {
                   "mimo-v2.5-free",
                   "mimo-v2.6-flash-free",
                 ]
-              : config.provider === "ollama-cloud"
+              : config.provider === "ai-gateway"
+                ? ["kaali-fast", "kaali-smart", "kaali-premium"]
+                : config.provider === "ollama-cloud"
                 ? ["gemma4:31b"]
                 : config.provider === "ollama"
                   ? ["qwen3:8b"]
@@ -361,7 +365,9 @@ export function AiWorkforcePanel() {
         <p className="text-xs text-muted-foreground">
           {config.provider === "openrouter"
             ? "Set OPENROUTER_API_KEY as a sensitive server environment variable in Vercel, then redeploy."
-            : config.provider === "opencode"
+            : config.provider === "ai-gateway"
+              ? "Set AI_GATEWAY_URL and AI_GATEWAY_KEY in Vercel, then redeploy. The gateway routes across Groq, Gemini and keyless failover automatically."
+              : config.provider === "opencode"
               ? "Set OPENCODE_API_KEY in Vercel, then redeploy. Free MiMo prompts may be used for model improvement; do not submit personal or confidential data."
               : config.provider === "ollama-cloud"
                 ? "Set OLLAMA_API_KEY in Vercel, then redeploy. Stay on the provider’s free plan; OrbitDesk does not purchase capacity."
