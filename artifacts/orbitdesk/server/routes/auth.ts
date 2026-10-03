@@ -27,6 +27,14 @@ import {
 
 const router = Router();
 
+// Dummy scrypt hash, computed once at startup. When a login attempt uses an
+// email that doesn't exist, we still run a full scrypt verification against
+// this hash so the response time is indistinguishable from a real password
+// check — closing the login timing oracle (email enumeration via timing).
+const DUMMY_PASSWORD_HASH: string = await hashPassword(
+  randomBytes(32).toString("hex"),
+);
+
 router.post("/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -57,7 +65,16 @@ router.post("/auth/login", async (req, res) => {
       .where(eq(usersTable.email, email.trim().toLowerCase()))
       .limit(1);
 
-    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    if (!user) {
+      // Burn the same scrypt work as a real check: a missing user must not
+      // be distinguishable from a wrong password via response timing.
+      await verifyPassword(password, DUMMY_PASSWORD_HASH);
+      res
+        .status(401)
+        .json({ error: "Unauthorized", message: "Invalid credentials" });
+      return;
+    }
+    if (!(await verifyPassword(password, user.passwordHash))) {
       res
         .status(401)
         .json({ error: "Unauthorized", message: "Invalid credentials" });

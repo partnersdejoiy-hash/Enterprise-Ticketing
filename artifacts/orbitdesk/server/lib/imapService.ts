@@ -1,5 +1,6 @@
 import { classifyTeam } from "./team-classifier.js";
 import { runAutomations } from "./automation.js";
+import { getDecryptedCredentials } from "./email-credentials.js";
 import { ImapFlow } from "imapflow";
 import {
   db,
@@ -355,12 +356,29 @@ export async function pollAll(): Promise<void> {
   const creatorId = systemUser?.id;
   if (!creatorId) return;
 
-  // Poll accounts from the new email_accounts table
+  // Poll accounts from the new email_accounts table.
+  // Passwords are encrypted at rest (migration 009): decrypt per account
+  // (migrating plaintext rows on first read). The filter below accepts
+  // migrated rows (imapPassEnc) as well as legacy plaintext rows.
   const emailAccounts = await db.select().from(emailAccountsTable);
   const activeEmailAccounts = emailAccounts.filter(
-    (a) => a.imapEnabled && a.imapHost && a.imapUser && a.imapPass,
+    (a) =>
+      a.imapEnabled &&
+      a.imapHost &&
+      a.imapUser &&
+      (a.imapPassEnc || a.imapPass),
   );
   for (const acc of activeEmailAccounts) {
+    let pass = "";
+    try {
+      ({ imapPass: pass } = await getDecryptedCredentials(acc.id));
+    } catch (err) {
+      console.error(
+        `[imap] Skipping account ${acc.imapUser}: credential decrypt failed`,
+      );
+      continue;
+    }
+    if (!pass) continue;
     await pollAccount(
       {
         id: acc.id,
@@ -368,7 +386,7 @@ export async function pollAll(): Promise<void> {
         port: acc.imapPort ?? 993,
         secure: acc.imapSecure !== false,
         user: acc.imapUser!,
-        pass: acc.imapPass!,
+        pass,
         mailbox: acc.imapMailbox || "INBOX",
         departmentId: acc.departmentId,
       },

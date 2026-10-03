@@ -125,4 +125,9 @@ export const EventTypes = {
   MONITORING_ALERT: "monitoring.alert",
   AUTOMATION_EXECUTED: "automation.executed",
   AI_ANALYSIS_COMPLETED: "ai.analysis_completed",
+  TRIAGE_COMPLETED: "ai.triage_completed",
+  RCA_HYPOTHESIS_PROPOSED: "rca.hypothesis_proposed",
+  RISK_PREDICTED: "risk.predicted",
+  RESOLUTION_PLAN_PROPOSED: "resolution.plan_proposed",
+  RESOLUTION_PLAN_EXECUTED: "resolution.plan_executed",
 } as const;

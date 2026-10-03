@@ -1,4 +1,5 @@
 import { AiWorkforcePanel } from "@/components/AiWorkforce";
+import { AdminCopilot } from "@/components/AdminCopilot";
 import {PersonalSettings,RoutingSettingsPanel} from "@/components/WorkspaceSettings";
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1569,6 +1570,11 @@ export default function Settings() {
                   <Send className="h-3.5 w-3.5" /> Email Notifications
                 </TabsTrigger>
                 <TabsTrigger value="ai-workforce">AI workforce</TabsTrigger>
+                {canAdmin && (
+                  <TabsTrigger value="admin-copilot" className="gap-1.5">
+                    Admin Copilot
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="system" className="gap-1.5">
                   <SettingsIcon className="h-3.5 w-3.5" /> System
                 </TabsTrigger>
@@ -1577,6 +1583,7 @@ export default function Settings() {
           </TabsList>
 
           {canAdmin && <TabsContent value="ai-workforce" forceMount className="data-[state=inactive]:hidden"><AiWorkforcePanel /></TabsContent>}
+          {canAdmin && <TabsContent value="admin-copilot" forceMount className="data-[state=inactive]:hidden"><AdminCopilot /></TabsContent>}
           <TabsContent value="profile" forceMount className="data-[state=inactive]:hidden"><PersonalSettings /></TabsContent>
           <TabsContent value="notifications" forceMount className="data-[state=inactive]:hidden"><PersonalSettings notificationsOnly /></TabsContent>
 

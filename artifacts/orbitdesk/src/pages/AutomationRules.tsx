@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/lib/auth";
+import { AutomationCopilot } from "@/components/AutomationCopilot";
 
 type Condition = {
   field: string;
@@ -365,6 +366,12 @@ export default function AutomationRules() {
               activation.
             </div>
           </div>
+
+          {isSuperAdmin && (
+            <div className="mb-5">
+              <AutomationCopilot onCreated={fetchRules} />
+            </div>
+          )}
 
           {loading ? (
             <div className="flex items-center justify-center py-16">

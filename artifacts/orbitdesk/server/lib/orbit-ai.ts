@@ -19,7 +19,7 @@
  */
 
 import { pool } from "@workspace/db";
-import { completeAi } from "./ai-provider.js";
+import { completeAi, getAiConfig } from "./ai-provider.js";
 import { scanContent, recordDetections } from "./security-shield.js";
 
 export interface AnalysisSource {
@@ -115,15 +115,19 @@ export async function runAnalysis(req: AnalysisRequest): Promise<AnalysisResult>
   const fullSystem = `${SYSTEM_GUARDRAIL}\n\n${req.systemPrompt}`;
   const userMessage = `${trustedSection}\n\n${dataSection}`.trim();
 
-  // 9. Rate limit: reuse the orbit_ai_calls quota mechanism via completeAi.
+  // 9. Rate limit: completeAi enforces per-day/minute caps via orbit_ai_calls.
   let raw: string;
   let model = "unknown";
   try {
-    const res = await completeAi({
-      system: fullSystem,
-      user: userMessage,
-      maxTokens: req.maxTokens ?? 1200,
-    });
+    const config = await getAiConfig();
+    const res = await completeAi(
+      config,
+      fullSystem,
+      userMessage.slice(0, 10000),
+      req.feature,
+      req.actorId ?? undefined,
+      req.maxTokens ?? 1200,
+    );
     raw = res.text;
     model = res.model ?? model;
   } catch (err) {

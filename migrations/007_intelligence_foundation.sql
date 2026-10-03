@@ -243,7 +243,7 @@ CREATE INDEX IF NOT EXISTS users_department_id_idx ON users(department_id);
 CREATE INDEX IF NOT EXISTS orbit_ai_jobs_status_idx ON orbit_ai_jobs(status);
 CREATE INDEX IF NOT EXISTS automation_rules_active_trigger_idx
   ON automation_rules(is_active, trigger_type);
-CREATE INDEX IF NOT EXISTS comments_ticket_id_idx ON comments(ticket_id);
+CREATE INDEX IF NOT EXISTS ticket_comments_ticket_id_idx ON ticket_comments(ticket_id);
 
 -- Enforce key relationships (validated, concurrent-safe).
 DO $$

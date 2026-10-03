@@ -138,6 +138,7 @@ export async function completeAi(
   input: string,
   purpose: string,
   actorId?: number,
+  maxTokens = 600,
 ) {
   if (!validAiConfig(config))
     throw new AiUnavailable(
@@ -198,6 +199,33 @@ export async function completeAi(
       throw new AiUnavailable(
         "AI request limit reached. Retry later; no paid fallback will run.",
       );
+    // Per-user daily quota (Phase A): enforced inside the same advisory
+    // lock so concurrent requests can't race past the cap.
+    // Non-admin users: 10 calls/day. Admins: up to 40/day (bounded by the
+    // configured dailyLimit). System calls (no actorId) use the global cap.
+    if (actorId != null) {
+      const urow = await client.query(
+        "SELECT role FROM users WHERE id = $1 LIMIT 1",
+        [actorId],
+      );
+      const role = urow.rows[0]?.role as string | undefined;
+      const isPrivileged = role === "admin" || role === "super_admin";
+      const userLimit = isPrivileged
+        ? Math.min(config.dailyLimit, 40)
+        : Math.min(config.dailyLimit, 10);
+      const ucount = await client.query(
+        `SELECT count(*)::int AS c FROM orbit_ai_calls
+         WHERE actor_id = $1
+           AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`,
+        [actorId],
+      );
+      if (ucount.rows[0].c >= userLimit)
+        throw new AiUnavailable(
+          isPrivileged
+            ? "AI request limit reached. Retry later; no paid fallback will run."
+            : "Your personal AI quota for today is exhausted (10 calls/day). Please retry tomorrow.",
+        );
+    }
     const r = await client.query(
       "INSERT INTO orbit_ai_calls(actor_id,purpose,model) VALUES($1,$2,$3) RETURNING id",
       [actorId ?? null, purpose, config.model],
@@ -225,7 +253,7 @@ export async function completeAi(
           { role: "system", content: system },
           { role: "user", content: input.slice(0, 10000) },
         ],
-        max_tokens: 600,
+        max_tokens: Math.max(1, Math.min(maxTokens, 4000)),
         temperature: 0.2,
         ...(config.provider === "openrouter"
           ? {

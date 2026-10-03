@@ -2,6 +2,9 @@ import { useMyPermissions } from "@/hooks/usePermissions";
 import { deleteTicket } from "@/lib/delete-ticket";
 import { TicketAiDrafts } from "@/components/AiWorkforce";
 import { TicketPeople } from "@/components/TicketPeople";
+import { SlaPredictionCard } from "@/components/SlaPredictionCard";
+import { QueueRecommendation } from "@/components/QueueRecommendation";
+import ResolutionPlan from "@/components/ResolutionPlan";
 import { useDirectory } from "@/lib/directory";
 import React, { useState } from "react";
 import { useParams, useLocation } from "wouter";
@@ -62,6 +65,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { AttachmentsPanel } from "@/components/AttachmentsPanel";
+import { AiTriageCard } from "@/components/AiTriageCard";
+import { DuplicateCard } from "@/components/DuplicateCard";
+import { NextActionCard } from "@/components/NextActionCard";
+import { AgentAssistPanel } from "@/components/AgentAssistPanel";
+import { AnalyzeTicketButton } from "@/components/AnalyzeTicketButton";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   open: { label: "Open", color: "bg-blue-100 text-blue-700 border-blue-200" },
@@ -124,6 +132,7 @@ export default function TicketDetail() {
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingTicket, setDeletingTicket] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
 
   const handleDeleteTicket = async () => {
     setDeletingTicket(true);
@@ -293,6 +302,10 @@ export default function TicketDetail() {
                   </h1>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  <AnalyzeTicketButton
+                    ticketId={ticketId}
+                    onAnalysis={setAnalysis}
+                  />
                   <span
                     className={`px-2.5 py-1 rounded-full text-xs font-medium border ${statusCfg.color}`}
                   >
@@ -498,6 +511,14 @@ export default function TicketDetail() {
 
           {/* Sidebar */}
           <div className="space-y-4">
+            <AgentAssistPanel
+              ticketId={ticketId}
+              analysis={analysis}
+              onInsertDraft={(text) => {
+                setComment(text);
+                setActiveTab("conversation");
+              }}
+            />
             <div className="bg-card border border-border rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">
                 Ticket Properties
@@ -693,6 +714,15 @@ export default function TicketDetail() {
               </div>
             </div>
 
+            {/* SLA Intelligence (Superpower #1) */}
+            <SlaPredictionCard ticketId={ticketId} />
+
+            {/* AI Queue Optimizer (Superpower #7) */}
+            <QueueRecommendation ticketId={ticketId} />
+
+            {/* AI Resolution Plan (Superpower #3) */}
+            {canHandle && <ResolutionPlan ticketId={ticketId} />}
+
             {/* Quick Actions */}
             <div className="bg-card border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-foreground mb-3">
@@ -731,6 +761,11 @@ export default function TicketDetail() {
                 )}
               </div>
             </div>
+
+            {/* Orbit Intelligence: triage, duplicates, next action */}
+            <NextActionCard ticketId={ticket.id} />
+            <AiTriageCard ticketId={ticket.id} canHandle={canHandle} />
+            <DuplicateCard ticketId={ticket.id} canHandle={canHandle} />
           </div>
         </div>
       </div>

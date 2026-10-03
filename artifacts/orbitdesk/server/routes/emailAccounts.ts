@@ -4,14 +4,24 @@ import nodemailer from "nodemailer";
 import { db, emailAccountsTable, departmentsTable, eq } from "@workspace/db";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth";
 import { restartImapPoller } from "../lib/imapService";
+import {
+  encryptForWrite,
+  getDecryptedCredentials,
+} from "../lib/email-credentials";
+import { escapeHtml } from "../lib/security";
 
 const router = Router();
 
 function maskPass(acc: Record<string, unknown>) {
+  const hasSmtp = !!(acc.smtpPass || acc.smtpPassEnc);
+  const hasImap = !!(acc.imapPass || acc.imapPassEnc);
   return {
     ...acc,
-    smtpPass: acc.smtpPass ? "••••••••" : "",
-    imapPass: acc.imapPass ? "••••••••" : "",
+    smtpPass: hasSmtp ? "••••••••" : "",
+    imapPass: hasImap ? "••••••••" : "",
+    // Never leak encrypted blobs or key material to the client.
+    smtpPassEnc: undefined,
+    imapPassEnc: undefined,
   };
 }
 
@@ -104,7 +114,8 @@ router.post(
           smtpPort: smtpPort ?? 587,
           smtpSecure: !!smtpSecure,
           smtpUser: smtpUser ?? "",
-          smtpPass: smtpPass ?? "",
+          // Passwords are ALWAYS stored encrypted (migration 009).
+          ...encryptForWrite(smtpPass, imapPass),
           smtpFromEmail: smtpFromEmail ?? "",
           smtpFromName: smtpFromName ?? "OrbitDesk",
           smtpEnabled: !!smtpEnabled,
@@ -112,7 +123,6 @@ router.post(
           imapPort: imapPort ?? 993,
           imapSecure: imapSecure !== false,
           imapUser: imapUser ?? "",
-          imapPass: imapPass ?? "",
           imapMailbox: imapMailbox ?? "INBOX",
           imapPollInterval: imapPollInterval ?? 5,
           imapEnabled: !!imapEnabled,
@@ -188,7 +198,7 @@ router.put(
       if (smtpSecure !== undefined) update.smtpSecure = !!smtpSecure;
       if (smtpUser !== undefined) update.smtpUser = smtpUser;
       if (smtpPass !== undefined && smtpPass !== "••••••••")
-        update.smtpPass = smtpPass;
+        Object.assign(update, encryptForWrite(smtpPass, undefined));
       if (smtpFromEmail !== undefined) update.smtpFromEmail = smtpFromEmail;
       if (smtpFromName !== undefined) update.smtpFromName = smtpFromName;
       if (smtpEnabled !== undefined) update.smtpEnabled = !!smtpEnabled;
@@ -197,7 +207,7 @@ router.put(
       if (imapSecure !== undefined) update.imapSecure = !!imapSecure;
       if (imapUser !== undefined) update.imapUser = imapUser;
       if (imapPass !== undefined && imapPass !== "••••••••")
-        update.imapPass = imapPass;
+        Object.assign(update, encryptForWrite(undefined, imapPass));
       if (imapMailbox !== undefined) update.imapMailbox = imapMailbox;
       if (imapPollInterval !== undefined)
         update.imapPollInterval = imapPollInterval;
@@ -288,18 +298,19 @@ router.post(
       }
 
       const testTo = req.body?.to || req.user!.email;
+      const creds = await getDecryptedCredentials(id);
       const transporter = nodemailer.createTransport({
         host: acc.smtpHost,
         port: acc.smtpPort ?? 587,
         secure: !!acc.smtpSecure,
-        auth: { user: acc.smtpUser, pass: acc.smtpPass ?? "" },
+        auth: { user: acc.smtpUser, pass: creds.smtpPass },
       });
       await transporter.sendMail({
         from: `"${acc.smtpFromName || "OrbitDesk"}" <${acc.smtpFromEmail || acc.smtpUser}>`,
         to: testTo,
         subject: `[OrbitDesk] Test Email — ${acc.name}`,
         text: `This is a test email from the OrbitDesk email account "${acc.name}" to verify your SMTP configuration.`,
-        html: `<p>This is a test email from the OrbitDesk email account <strong>${acc.name}</strong> to verify your SMTP configuration.</p><p>If you received this, the account is working correctly.</p>`,
+        html: `<p>This is a test email from the OrbitDesk email account <strong>${escapeHtml(acc.name)}</strong> to verify your SMTP configuration.</p><p>If you received this, the account is working correctly.</p>`,
       });
       res.json({ message: `Test email sent to ${testTo}` });
     } catch (err: any) {
@@ -339,7 +350,10 @@ router.post(
         host: acc.imapHost,
         port: acc.imapPort ?? 993,
         secure: acc.imapSecure !== false,
-        auth: { user: acc.imapUser, pass: acc.imapPass ?? "" },
+        auth: {
+          user: acc.imapUser,
+          pass: (await getDecryptedCredentials(id)).imapPass,
+        },
         logger: false,
         tls: { rejectUnauthorized: true },
       });

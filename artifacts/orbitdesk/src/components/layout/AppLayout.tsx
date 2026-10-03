@@ -23,6 +23,17 @@ import {
   Briefcase,
   ShieldCheck,
   MessagesSquare,
+  Timer,
+  Radar,
+  GitBranch,
+  Activity,
+  Siren,
+  Wrench,
+  LayoutGrid,
+  Gauge,
+  Newspaper,
+  Map,
+  GitPullRequest,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -48,9 +59,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const allNavItems = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles: string[] | null;
+  sectionHeader?: string;
+}
+
+const allNavItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: null },
+  {
+    name: "Command Center",
+    href: "/command-center",
+    icon: Gauge,
+    roles: ["super_admin", "admin", "manager"],
+    sectionHeader: "Intelligence",
+  },
   { name: "Tickets", href: "/tickets", icon: Ticket, roles: null },
+  { name: "Service Catalog", href: "/catalog", icon: LayoutGrid, roles: null },
   {
     name: "Document Requests",
     href: "/documents",
@@ -67,6 +94,49 @@ const allNavItems = [
     name: "Background Verification",
     href: "/background-verification",
     icon: ShieldCheck,
+    roles: ["super_admin", "admin", "manager", "agent"],
+  },
+  {
+    name: "Root Cause",
+    href: "/intelligence/root-cause",
+    icon: GitBranch,
+    roles: ["super_admin", "admin", "manager", "agent"],
+    sectionHeader: "Intelligence",
+  },
+  {
+    name: "Risk Radar",
+    href: "/intelligence/risks",
+    icon: Radar,
+    roles: ["super_admin", "admin", "manager", "agent"],
+  },
+  {
+    name: "Monitoring",
+    href: "/monitoring",
+    icon: Activity,
+    roles: ["super_admin", "admin", "manager", "agent"],
+  },
+  {
+    name: "Knowledge",
+    href: "/knowledge",
+    icon: BookOpen,
+    roles: ["super_admin", "admin", "manager", "agent"],
+  },
+  {
+    name: "Executive Brief",
+    href: "/briefs",
+    icon: Newspaper,
+    roles: ["super_admin", "admin", "manager"],
+  },
+  {
+    name: "Operations Map",
+    href: "/operations-map",
+    icon: Map,
+    roles: ["super_admin", "admin", "manager", "agent"],
+  },
+  {
+    name: "Changes",
+    href: "/changes",
+    icon: GitPullRequest,
     roles: ["super_admin", "admin", "manager", "agent"],
   },
   {
@@ -87,8 +157,26 @@ const allNavItems = [
     icon: Zap,
     roles: ["super_admin", "admin"],
   },
+  {
+    name: "SLA Policies",
+    href: "/sla-policies",
+    icon: Timer,
+    roles: ["super_admin", "admin"],
+  },
   { name: "Training Centre", href: "/training", icon: BookOpen, roles: null },
   { name: "Team Chat", href: "/team-chat", icon: MessagesSquare, roles: null },
+  {
+    name: "Incidents",
+    href: "/incidents",
+    icon: Siren,
+    roles: ["super_admin", "admin", "manager", "agent"],
+  },
+  {
+    name: "Runbooks",
+    href: "/runbooks",
+    icon: Wrench,
+    roles: ["super_admin", "admin", "manager"],
+  },
   {
     name: "Website connection",
     href: "/integrations",
@@ -280,26 +368,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           const isActive = location.startsWith(item.href);
           const isZap = item.href === "/automation-rules";
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              }`}
-            >
-              <item.icon
-                className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-sidebar-primary" : ""} ${isZap && !isActive ? "text-orange-400" : ""}`}
-              />
-              <span className="flex-1 text-sm">{item.name}</span>
-              {isZap && !isActive && (
-                <span className="text-[9px] font-bold text-orange-400 bg-orange-400/10 px-1.5 py-0.5 rounded-full">
-                  AUTO
-                </span>
+            <React.Fragment key={item.href}>
+              {item.sectionHeader && (
+                <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/40">
+                  {item.sectionHeader}
+                </p>
               )}
-              {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-40" />}
-            </Link>
+              <Link
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                }`}
+              >
+                <item.icon
+                  className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-sidebar-primary" : ""} ${isZap && !isActive ? "text-orange-400" : ""}`}
+                />
+                <span className="flex-1 text-sm">{item.name}</span>
+                {isZap && !isActive && (
+                  <span className="text-[9px] font-bold text-orange-400 bg-orange-400/10 px-1.5 py-0.5 rounded-full">
+                    AUTO
+                  </span>
+                )}
+                {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-40" />}
+              </Link>
+            </React.Fragment>
           );
         })}
       </nav>

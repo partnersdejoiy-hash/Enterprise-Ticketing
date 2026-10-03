@@ -1,5 +1,12 @@
 import nodemailer from "nodemailer";
 import { db, systemSettingsTable, emailAccountsTable, eq } from "@workspace/db";
+import { escapeHtml } from "./security.js";
+import { getDecryptedCredentials } from "./email-credentials.js";
+import {
+  encryptSecret,
+  decryptSecret,
+  isEncrypted,
+} from "./credential-vault.js";
 
 export interface EmailConfig {
   host: string;
@@ -54,12 +61,18 @@ async function getEmailConfig(): Promise<EmailConfig> {
     );
     const chosen = primary ?? anySmtp;
     if (chosen) {
+      // Passwords are stored encrypted at rest (migration 009); decrypt for
+      // the SMTP handshake only. Unmigrated rows are migrated on read.
+      const creds = await getDecryptedCredentials(chosen.id).catch(() => ({
+        smtpPass: "",
+        imapPass: "",
+      }));
       return {
         host: chosen.smtpHost ?? "",
         port: chosen.smtpPort ?? 587,
         secure: !!chosen.smtpSecure,
         user: chosen.smtpUser ?? "",
-        pass: chosen.smtpPass ?? "",
+        pass: creds.smtpPass,
         fromEmail:
           chosen.smtpFromEmail || chosen.smtpUser || DEFAULT_FROM_EMAIL,
         fromName: chosen.smtpFromName || DEFAULT_FROM_NAME,
@@ -67,15 +80,28 @@ async function getEmailConfig(): Promise<EmailConfig> {
       };
     }
 
-    // Fallback: legacy system_settings SMTP config
+    // Fallback: legacy system_settings SMTP config. The password may be
+    // vault-encrypted (new writes) or legacy plaintext (old rows) — handle
+    // both; new writes via PUT /settings/email are always encrypted.
     const rows = await db.select().from(systemSettingsTable);
     const get = (key: string) => rows.find((r) => r.key === key)?.value ?? "";
+    const legacyPass = get("smtp_pass") || "";
+    let legacyDecrypted = "";
+    try {
+      legacyDecrypted = legacyPass
+        ? isEncrypted(legacyPass)
+          ? decryptSecret(legacyPass)
+          : legacyPass
+        : "";
+    } catch {
+      legacyDecrypted = "";
+    }
     return {
       host: get("smtp_host") || "",
       port: parseInt(get("smtp_port") || "587"),
       secure: get("smtp_secure") === "true",
       user: get("smtp_user") || "",
-      pass: get("smtp_pass") || "",
+      pass: legacyDecrypted,
       fromEmail: get("email_from") || DEFAULT_FROM_EMAIL,
       fromName: get("email_from_name") || DEFAULT_FROM_NAME,
       enabled: get("email_enabled") === "true",
@@ -131,7 +157,10 @@ function baseTemplate(title: string, bodyHtml: string): string {
 }
 
 function statusBadge(status: string): string {
-  return `<span class="badge badge-${status}">${status.replace("_", " ")}</span>`;
+  // The CSS class is whitelisted (alphanumeric/underscore only); the label
+  // is HTML-escaped. Status values can be user-influenced via ticket data.
+  const safeClass = String(status).replace(/[^a-z0-9_]/gi, "") || "open";
+  return `<span class="badge badge-${safeClass}">${escapeHtml(String(status).replace("_", " "))}</span>`;
 }
 
 export interface EmailAttachmentInput {
@@ -229,20 +258,20 @@ export async function sendTicketCreatedEmail(opts: {
   if (!to.length) return;
 
   const forLine = opts.raisedForName
-    ? `<p>This ticket was raised by <strong>${opts.createdByName}</strong> on behalf of <strong>${opts.raisedForName}</strong>.</p>`
+    ? `<p>This ticket was raised by <strong>${escapeHtml(opts.createdByName)}</strong> on behalf of <strong>${escapeHtml(opts.raisedForName)}</strong>.</p>`
     : `<p>Your ticket has been received and assigned a tracking number. Our team will review and respond shortly.</p>`;
 
   const html = baseTemplate(
-    `Ticket Created: ${opts.ticketNumber}`,
+    `Ticket Created: ${escapeHtml(opts.ticketNumber)}`,
     `
     <h2>Ticket Created Successfully</h2>
     ${forLine}
     <div class="card">
-      <div class="card-row"><span class="label">Ticket #</span><span class="val">${opts.ticketNumber}</span></div>
-      <div class="card-row"><span class="label">Subject</span><span class="val">${opts.subject}</span></div>
+      <div class="card-row"><span class="label">Ticket #</span><span class="val">${escapeHtml(opts.ticketNumber)}</span></div>
+      <div class="card-row"><span class="label">Subject</span><span class="val">${escapeHtml(opts.subject)}</span></div>
       <div class="card-row"><span class="label">Status</span><span class="val">${statusBadge(opts.status)}</span></div>
       <div class="card-row"><span class="label">Priority</span><span class="val">${statusBadge(opts.priority)}</span></div>
-      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${opts.departmentName}</span></div>` : ""}
+      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${escapeHtml(opts.departmentName)}</span></div>` : ""}
     </div>
     <p>You will be notified when there are updates. Please keep this ticket number for reference.</p>
   `,
@@ -286,7 +315,7 @@ export async function sendTicketStatusEmail(opts: {
   const actionMap: Record<string, { title: string; msg: string }> = {
     resolved: {
       title: "Ticket Resolved",
-      msg: `Your ticket has been resolved by <strong>${opts.changedByName}</strong>. If you have further questions, please open a new ticket.`,
+      msg: `Your ticket has been resolved by <strong>${escapeHtml(opts.changedByName)}</strong>. If you have further questions, please open a new ticket.`,
     },
     closed: {
       title: "Ticket Closed",
@@ -308,20 +337,20 @@ export async function sendTicketStatusEmail(opts: {
   };
   const info = actionMap[opts.newStatus] ?? {
     title: `Ticket Status Updated`,
-    msg: `Your ticket status has been updated to <strong>${opts.newStatus.replace("_", " ")}</strong>.`,
+    msg: `Your ticket status has been updated to <strong>${escapeHtml(opts.newStatus.replace("_", " "))}</strong>.`,
   };
 
   const html = baseTemplate(
-    `${info.title}: ${opts.ticketNumber}`,
+    `${escapeHtml(info.title)}: ${escapeHtml(opts.ticketNumber)}`,
     `
-    <h2>${info.title}</h2>
+    <h2>${escapeHtml(info.title)}</h2>
     <p>${info.msg}</p>
     <div class="card">
-      <div class="card-row"><span class="label">Ticket #</span><span class="val">${opts.ticketNumber}</span></div>
-      <div class="card-row"><span class="label">Subject</span><span class="val">${opts.subject}</span></div>
+      <div class="card-row"><span class="label">Ticket #</span><span class="val">${escapeHtml(opts.ticketNumber)}</span></div>
+      <div class="card-row"><span class="label">Subject</span><span class="val">${escapeHtml(opts.subject)}</span></div>
       <div class="card-row"><span class="label">Previous Status</span><span class="val">${statusBadge(opts.oldStatus)}</span></div>
       <div class="card-row"><span class="label">New Status</span><span class="val">${statusBadge(opts.newStatus)}</span></div>
-      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${opts.departmentName}</span></div>` : ""}
+      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${escapeHtml(opts.departmentName)}</span></div>` : ""}
     </div>
   `,
   );
@@ -349,18 +378,18 @@ export async function sendDocumentRequestEmail(opts: {
     : `Document Request ${opts.status.replace("_", " ")}`;
 
   const html = baseTemplate(
-    `${title}: ${opts.ticketNumber}`,
+    `${escapeHtml(title)}: ${escapeHtml(opts.ticketNumber)}`,
     `
-    <h2>${title}</h2>
-    <p>Hi <strong>${opts.requesterName}</strong>,</p>
+    <h2>${escapeHtml(title)}</h2>
+    <p>Hi <strong>${escapeHtml(opts.requesterName)}</strong>,</p>
     <p>${
       isNew
         ? "Your document request has been received and is being processed by the HR team."
-        : `Your document request status has been updated${opts.changedByName ? ` by <strong>${opts.changedByName}</strong>` : ""}.`
+        : `Your document request status has been updated${opts.changedByName ? ` by <strong>${escapeHtml(opts.changedByName)}</strong>` : ""}.`
     }</p>
     <div class="card">
-      <div class="card-row"><span class="label">Request #</span><span class="val">${opts.ticketNumber}</span></div>
-      <div class="card-row"><span class="label">Document</span><span class="val">${opts.subject.replace("Document Request: ", "")}</span></div>
+      <div class="card-row"><span class="label">Request #</span><span class="val">${escapeHtml(opts.ticketNumber)}</span></div>
+      <div class="card-row"><span class="label">Document</span><span class="val">${escapeHtml(opts.subject.replace("Document Request: ", ""))}</span></div>
       <div class="card-row"><span class="label">Status</span><span class="val">${statusBadge(opts.status)}</span></div>
     </div>
     <p>${isNew ? "You will receive updates via email as your request progresses." : ""}</p>

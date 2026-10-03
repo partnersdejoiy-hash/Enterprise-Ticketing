@@ -24,7 +24,21 @@ const BackgroundVerification = lazy(
   () => import("@/pages/BackgroundVerification"),
 );
 const TeamChat = lazy(() => import("@/pages/TeamChat"));
+const Incidents = lazy(() => import("@/pages/Incidents"));
+const SwarmRoom = lazy(() => import("@/pages/SwarmRoom"));
+const Runbooks = lazy(() => import("@/pages/Runbooks"));
+const Monitoring = lazy(() => import("@/pages/Monitoring"));
+const SlaPolicies = lazy(() => import("@/pages/SlaPolicies"));
+const Risks = lazy(() => import("@/pages/Risks"));
+const RootCause = lazy(() => import("@/pages/RootCause"));
+const Knowledge = lazy(() => import("@/pages/Knowledge"));
 const PublicRequest = lazy(() => import("@/pages/PublicRequest"));
+const ServiceCatalog = lazy(() => import("@/pages/ServiceCatalog"));
+const CommandCenter = lazy(() => import("@/pages/CommandCenter"));
+const ExecutiveBrief = lazy(() => import("@/pages/ExecutiveBrief"));
+const OperationsMap = lazy(() => import("@/pages/OperationsMap"));
+const Changes = lazy(() => import("@/pages/Changes"));
+const TicketGraph = lazy(() => import("@/pages/TicketGraph"));
 import { useAuthStore } from "@/lib/auth";
 
 setAuthTokenGetter(() => {
@@ -154,6 +168,11 @@ function Router() {
           <AutomationRules />
         </AuthGuard>
       </Route>
+      <Route path="/sla-policies">
+        <AuthGuard>
+          <SlaPolicies />
+        </AuthGuard>
+      </Route>
       <Route path="/employment-verification">
         <AuthGuard>
           <EmploymentVerification />
@@ -167,6 +186,71 @@ function Router() {
       <Route path="/team-chat">
         <AuthGuard>
           <TeamChat />
+        </AuthGuard>
+      </Route>
+      <Route path="/incidents">
+        <AuthGuard>
+          <Incidents />
+        </AuthGuard>
+      </Route>
+      <Route path="/incidents/:id">
+        <AuthGuard>
+          <SwarmRoom />
+        </AuthGuard>
+      </Route>
+      <Route path="/runbooks">
+        <AuthGuard>
+          <Runbooks />
+        </AuthGuard>
+      </Route>
+      <Route path="/intelligence/risks">
+        <AuthGuard>
+          <Risks />
+        </AuthGuard>
+      </Route>
+      <Route path="/intelligence/root-cause">
+        <AuthGuard>
+          <RootCause />
+        </AuthGuard>
+      </Route>
+      <Route path="/knowledge">
+        <AuthGuard>
+          <Knowledge />
+        </AuthGuard>
+      </Route>
+      <Route path="/monitoring">
+        <AuthGuard>
+          <Monitoring />
+        </AuthGuard>
+      </Route>
+      <Route path="/catalog">
+        <AuthGuard>
+          <ServiceCatalog />
+        </AuthGuard>
+      </Route>
+      <Route path="/command-center">
+        <AuthGuard>
+          <CommandCenter />
+        </AuthGuard>
+      </Route>
+      <Route path="/briefs">
+        <AuthGuard>
+          <ExecutiveBrief />
+        </AuthGuard>
+      </Route>
+      <Route path="/operations-map">
+        <AuthGuard>
+          <OperationsMap />
+        </AuthGuard>
+      </Route>
+      <Route path="/changes">
+        <AuthGuard>
+          <Changes />
+        </AuthGuard>
+      </Route>
+      <Route path="/tickets/:id/graph">
+        <AuthGuard>
+          <TicketGraph />
         </AuthGuard>
       </Route>
       <Route path="/request" component={PublicRequest} />

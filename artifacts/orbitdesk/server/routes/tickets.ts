@@ -1,5 +1,6 @@
 import { notifyTicket } from "../lib/ticket-notifications.js";
 import { classifyTeam } from "../lib/team-classifier.js";
+import { triageTicket } from "../lib/triage.js";
 import {
   autoAssignTicket,
   refillDepartmentQueue,
@@ -625,6 +626,12 @@ router.post(
       }
 
       res.status(201).json(formatted);
+
+      // Autonomous triage (Superpower #20): fire-and-forget, never blocks
+      // or fails the create response. AI quota errors are logged only.
+      triageTicket(ticket.id, createdById).catch((err) =>
+        console.error("[triage] auto-triage failed for ticket", ticket.id, err),
+      );
     } catch (err) {
       console.error("Create ticket error", err);
       res.status(500).json({ error: "Internal Server Error" });
