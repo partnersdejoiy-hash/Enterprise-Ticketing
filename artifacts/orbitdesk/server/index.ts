@@ -7,6 +7,11 @@ const port = isProduction
   : Number(process.env.API_PORT ?? "3001");
 
 app.listen(port, () => {
-  console.log(`[server] API listening on port ${port} (${isProduction ? "production" : "development"})`);
-  startImapPoller().catch(e => console.error("[imap] Failed to start poller:", e));
+  console.log(
+    `[server] API listening on port ${port} (${isProduction ? "production" : "development"})`,
+  );
+  if (process.env.IMAP_POLLING_ENABLED === "true")
+    startImapPoller().catch((e) =>
+      console.error("[imap] Failed to start poller:", e),
+    );
 });

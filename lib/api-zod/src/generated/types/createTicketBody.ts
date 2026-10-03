@@ -8,6 +8,8 @@
 import type { CreateTicketBodyPriority } from "./createTicketBodyPriority";
 
 export interface CreateTicketBody {
+  raisedForUserId?: number | null;
+  taggedUserIds?: number[];
   subject: string;
   description: string;
   priority?: CreateTicketBodyPriority;

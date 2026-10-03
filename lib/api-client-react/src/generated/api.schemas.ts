@@ -36,6 +36,11 @@ export const UserRole = {
 } as const;
 
 export interface User {
+  managerId?: number | null;
+  managerName?: string | null;
+  teamName?: string | null;
+  mustChangePassword?: boolean;
+  employeeId?: string | null;
   id: number;
   name: string;
   email: string;
@@ -135,6 +140,8 @@ export const TicketPriority = {
 } as const;
 
 export interface Ticket {
+  raisedForUserId?: number | null;
+  taggedUserIds?: number[];
   id: number;
   ticketNumber: string;
   subject: string;
@@ -193,6 +200,8 @@ export const CreateTicketBodyPriority = {
 } as const;
 
 export interface CreateTicketBody {
+  raisedForUserId?: number | null;
+  taggedUserIds?: number[];
   subject: string;
   description: string;
   priority?: CreateTicketBodyPriority;
@@ -224,6 +233,8 @@ export const UpdateTicketBodyPriority = {
 } as const;
 
 export interface UpdateTicketBody {
+  raisedForUserId?: number | null;
+  taggedUserIds?: number[];
   subject?: string;
   description?: string;
   status?: UpdateTicketBodyStatus;
@@ -287,6 +298,8 @@ export interface SlaOverview {
 }
 
 export type ListTicketsParams = {
+  view?: string;
+  unassignedDepartment?: string;
   status?: ListTicketsStatus;
   priority?: ListTicketsPriority;
   departmentId?: number;

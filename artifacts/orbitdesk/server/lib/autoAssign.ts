@@ -1,12 +1,14 @@
 import { db, usersTable, ticketsTable, and, inArray, sql } from "@workspace/db";
 
-const ASSIGNABLE_ROLES = ["agent", "manager", "employee"] as const;
+const ASSIGNABLE_ROLES = ["agent", "manager"] as const;
 
 /**
  * Auto-assign from a pool of multiple departments.
  * Finds the active member (from any of the given departments) with the fewest open tickets.
  */
-export async function autoAssignFromDepartments(departmentIds: number[]): Promise<number | null> {
+export async function autoAssignFromDepartments(
+  departmentIds: number[],
+): Promise<number | null> {
   if (departmentIds.length === 0) return null;
 
   const agents = await db
@@ -16,7 +18,7 @@ export async function autoAssignFromDepartments(departmentIds: number[]): Promis
       and(
         inArray(usersTable.departmentId, departmentIds),
         inArray(usersTable.isActive, [true] as any),
-        inArray(usersTable.role, ASSIGNABLE_ROLES as unknown as string[]),
+        inArray(usersTable.role, ASSIGNABLE_ROLES),
       ),
     );
 
@@ -34,7 +36,11 @@ export async function autoAssignFromDepartments(departmentIds: number[]): Promis
     .where(
       and(
         inArray(ticketsTable.assigneeId, agentIds),
-        inArray(ticketsTable.status, ["open", "assigned", "in_progress"] as any),
+        inArray(ticketsTable.status, [
+          "open",
+          "assigned",
+          "in_progress",
+        ] as any),
       ),
     )
     .groupBy(ticketsTable.assigneeId);
@@ -48,12 +54,17 @@ export async function autoAssignFromDepartments(departmentIds: number[]): Promis
   let minCount = countMap.get(minAgent) ?? 0;
   for (const id of agentIds.slice(1)) {
     const c = countMap.get(id) ?? 0;
-    if (c < minCount) { minCount = c; minAgent = id; }
+    if (c < minCount) {
+      minCount = c;
+      minAgent = id;
+    }
   }
   return minAgent;
 }
 
 /** Convenience wrapper for a single department */
-export async function autoAssignForDepartment(departmentId: number): Promise<number | null> {
+export async function autoAssignForDepartment(
+  departmentId: number,
+): Promise<number | null> {
   return autoAssignFromDepartments([departmentId]);
 }

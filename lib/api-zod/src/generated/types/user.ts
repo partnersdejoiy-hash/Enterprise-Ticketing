@@ -8,6 +8,11 @@
 import type { UserRole } from "./userRole";
 
 export interface User {
+  managerId?: number | null;
+  managerName?: string | null;
+  teamName?: string | null;
+  mustChangePassword?: boolean;
+  employeeId?: string | null;
   id: number;
   name: string;
   email: string;

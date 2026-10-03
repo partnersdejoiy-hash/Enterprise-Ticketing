@@ -9,6 +9,8 @@ import type { TicketPriority } from "./ticketPriority";
 import type { TicketStatus } from "./ticketStatus";
 
 export interface Ticket {
+  raisedForUserId?: number | null;
+  taggedUserIds?: number[];
   id: number;
   ticketNumber: string;
   subject: string;

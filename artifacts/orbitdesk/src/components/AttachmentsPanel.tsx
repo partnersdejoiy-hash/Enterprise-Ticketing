@@ -5,11 +5,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/lib/auth";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Paperclip, Upload, Download, Trash2, Send, FileText,
-  Image, File, FileSpreadsheet, Loader2, X, CheckSquare
+  Paperclip,
+  Upload,
+  Download,
+  Trash2,
+  Send,
+  FileText,
+  Image,
+  File,
+  FileSpreadsheet,
+  Loader2,
+  X,
+  CheckSquare,
 } from "lucide-react";
 
 interface Attachment {
@@ -29,7 +43,7 @@ interface AttachmentsPanelProps {
   ticketNumber?: string;
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const ALLOWED_MIME = [
   "application/pdf",
   "application/msword",
@@ -48,21 +62,34 @@ const ALLOWED_MIME = [
 ];
 
 function getFileIcon(fileType: string) {
-  if (fileType.startsWith("image/")) return <Image className="h-4 w-4 text-blue-500" />;
-  if (fileType === "application/pdf") return <FileText className="h-4 w-4 text-red-500" />;
-  if (fileType.includes("spreadsheet") || fileType.includes("excel") || fileType === "text/csv")
+  if (fileType.startsWith("image/"))
+    return <Image className="h-4 w-4 text-blue-500" />;
+  if (fileType === "application/pdf")
+    return <FileText className="h-4 w-4 text-red-500" />;
+  if (
+    fileType.includes("spreadsheet") ||
+    fileType.includes("excel") ||
+    fileType === "text/csv"
+  )
     return <FileSpreadsheet className="h-4 w-4 text-green-600" />;
   return <File className="h-4 w-4 text-slate-500" />;
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "numeric", minute: "2-digit", hour12: true,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   });
 }
 
-export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelProps) {
+export function AttachmentsPanel({
+  ticketId,
+  ticketNumber,
+}: AttachmentsPanelProps) {
   const { toast } = useToast();
   const { user } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +108,10 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
   const [sending, setSending] = useState(false);
 
   const token = () => localStorage.getItem("auth_token");
-  const headers = () => ({ Authorization: `Bearer ${token()}`, "Content-Type": "application/json" });
+  const headers = () => ({
+    Authorization: `Bearer ${token()}`,
+    "Content-Type": "application/json",
+  });
 
   const fetchAttachments = async () => {
     setLoading(true);
@@ -91,7 +121,11 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
       });
       if (res.ok) setAttachments(await res.json());
     } catch (e) {
-      toast({ title: "Error", description: "Failed to load attachments", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to load attachments",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -113,11 +147,19 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
 
     for (const file of files) {
       if (!ALLOWED_MIME.includes(file.type)) {
-        toast({ title: "Unsupported file type", description: `${file.name} is not supported.`, variant: "destructive" });
+        toast({
+          title: "Unsupported file type",
+          description: `${file.name} is not supported.`,
+          variant: "destructive",
+        });
         continue;
       }
       if (file.size > MAX_FILE_SIZE) {
-        toast({ title: "File too large", description: `${file.name} exceeds the 10 MB limit.`, variant: "destructive" });
+        toast({
+          title: "File too large",
+          description: `${file.name} exceeds the 2 MB limit.`,
+          variant: "destructive",
+        });
         continue;
       }
 
@@ -139,10 +181,17 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
             throw new Error(err.error ?? "Upload failed");
           }
           const newAttachment = await res.json();
-          setAttachments(prev => [...prev, newAttachment]);
-          toast({ title: "Uploaded", description: `${file.name} uploaded successfully` });
+          setAttachments((prev) => [...prev, newAttachment]);
+          toast({
+            title: "Uploaded",
+            description: `${file.name} uploaded successfully`,
+          });
         } catch (err: any) {
-          toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+          toast({
+            title: "Upload failed",
+            description: err.message,
+            variant: "destructive",
+          });
         } finally {
           setUploading(false);
         }
@@ -155,11 +204,16 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
     const res = await fetch(`/api/attachments/${att.id}/download`, {
       headers: { Authorization: `Bearer ${token()}` },
     });
-    if (!res.ok) { toast({ title: "Download failed", variant: "destructive" }); return; }
+    if (!res.ok) {
+      toast({ title: "Download failed", variant: "destructive" });
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = att.fileName; a.click();
+    a.href = url;
+    a.download = att.fileName;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -171,8 +225,12 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
         headers: { Authorization: `Bearer ${token()}` },
       });
       if (!res.ok) throw new Error("Delete failed");
-      setAttachments(prev => prev.filter(a => a.id !== id));
-      setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      setAttachments((prev) => prev.filter((a) => a.id !== id));
+      setSelectedIds((prev) => {
+        const s = new Set(prev);
+        s.delete(id);
+        return s;
+      });
       toast({ title: "Deleted", description: "Attachment removed" });
     } catch {
       toast({ title: "Delete failed", variant: "destructive" });
@@ -182,21 +240,29 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
   };
 
   const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const s = new Set(prev);
-      if (s.has(id)) s.delete(id); else s.add(id);
+      if (s.has(id)) s.delete(id);
+      else s.add(id);
       return s;
     });
   };
 
   const handleSend = async () => {
     if (!sendEmail.trim()) {
-      toast({ title: "Email required", description: "Please enter a recipient email", variant: "destructive" });
+      toast({
+        title: "Email required",
+        description: "Please enter a recipient email",
+        variant: "destructive",
+      });
       return;
     }
     setSending(true);
     try {
-      const idsToSend = selectedIds.size > 0 ? Array.from(selectedIds) : attachments.map(a => a.id);
+      const idsToSend =
+        selectedIds.size > 0
+          ? Array.from(selectedIds)
+          : attachments.map((a) => a.id);
       const res = await fetch(`/api/tickets/${ticketId}/send-attachments`, {
         method: "POST",
         headers: headers(),
@@ -209,18 +275,29 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send");
-      toast({ title: "Sent!", description: `${data.sent} file(s) emailed to ${data.to}` });
+      toast({
+        title: "Sent!",
+        description: `${data.sent} file(s) emailed to ${data.to}`,
+      });
       setSendDialogOpen(false);
-      setSendEmail(""); setSendName(""); setSendMessage("");
+      setSendEmail("");
+      setSendName("");
+      setSendMessage("");
     } catch (err: any) {
-      toast({ title: "Send failed", description: err.message, variant: "destructive" });
+      toast({
+        title: "Send failed",
+        description: err.message,
+        variant: "destructive",
+      });
     } finally {
       setSending(false);
     }
   };
 
   const canDelete = (att: Attachment) =>
-    user?.role === "super_admin" || user?.role === "admin" || att.uploadedById === user?.id;
+    user?.role === "super_admin" ||
+    user?.role === "admin" ||
+    att.uploadedById === user?.id;
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -238,7 +315,9 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
             </span>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">{expanded ? "▲ hide" : "▼ show"}</span>
+        <span className="text-xs text-muted-foreground">
+          {expanded ? "▲ hide" : "▼ show"}
+        </span>
       </button>
 
       {expanded && (
@@ -259,13 +338,19 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
             {uploading ? (
               <div className="flex flex-col items-center gap-1">
                 <Loader2 className="h-6 w-6 text-primary animate-spin" />
-                <span className="text-sm text-muted-foreground">Uploading…</span>
+                <span className="text-sm text-muted-foreground">
+                  Uploading…
+                </span>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
                 <Upload className="h-6 w-6 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">Click to upload files</span>
-                <span className="text-xs text-muted-foreground">PDF, Word, Excel, images, ZIP — max 10 MB each</span>
+                <span className="text-sm font-medium text-foreground">
+                  Click to upload files
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  PDF, Word, Excel, images, ZIP — max 2 MB each
+                </span>
               </div>
             )}
           </div>
@@ -276,7 +361,9 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : attachments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-2">No attachments yet</p>
+            <p className="text-sm text-muted-foreground text-center py-2">
+              No attachments yet
+            </p>
           ) : (
             <>
               {/* Select all / Send */}
@@ -287,12 +374,14 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
                     setSelectedIds(
                       selectedIds.size === attachments.length
                         ? new Set()
-                        : new Set(attachments.map(a => a.id))
+                        : new Set(attachments.map((a) => a.id)),
                     )
                   }
                 >
                   <CheckSquare className="h-3.5 w-3.5" />
-                  {selectedIds.size === attachments.length ? "Deselect all" : "Select all"}
+                  {selectedIds.size === attachments.length
+                    ? "Deselect all"
+                    : "Select all"}
                 </button>
                 <Button
                   size="sm"
@@ -301,16 +390,21 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
                   onClick={() => setSendDialogOpen(true)}
                 >
                   <Send className="h-3 w-3" />
-                  Send{selectedIds.size > 0 ? ` (${selectedIds.size})` : " all"} to Employee
+                  Send{selectedIds.size > 0
+                    ? ` (${selectedIds.size})`
+                    : " all"}{" "}
+                  to Employee
                 </Button>
               </div>
 
               <div className="space-y-2">
-                {attachments.map(att => (
+                {attachments.map((att) => (
                   <div
                     key={att.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                      selectedIds.has(att.id) ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+                      selectedIds.has(att.id)
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-muted/30"
                     }`}
                   >
                     <input
@@ -321,9 +415,12 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
                     />
                     <div className="shrink-0">{getFileIcon(att.fileType)}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{att.fileName}</div>
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {att.fileName}
+                      </div>
                       <div className="text-xs text-muted-foreground">
-                        {att.fileSizeFormatted} · {att.uploadedByName} · {formatDate(att.createdAt)}
+                        {att.fileSizeFormatted} · {att.uploadedByName} ·{" "}
+                        {formatDate(att.createdAt)}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -379,7 +476,7 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
                 type="email"
                 placeholder="employee@company.com"
                 value={sendEmail}
-                onChange={e => setSendEmail(e.target.value)}
+                onChange={(e) => setSendEmail(e.target.value)}
               />
             </div>
             <div>
@@ -389,7 +486,7 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
               <Input
                 placeholder="Full name (optional)"
                 value={sendName}
-                onChange={e => setSendName(e.target.value)}
+                onChange={(e) => setSendName(e.target.value)}
               />
             </div>
             <div>
@@ -399,34 +496,53 @@ export function AttachmentsPanel({ ticketId, ticketNumber }: AttachmentsPanelPro
               <Textarea
                 placeholder="Add a personal message (optional)…"
                 value={sendMessage}
-                onChange={e => setSendMessage(e.target.value)}
+                onChange={(e) => setSendMessage(e.target.value)}
                 className="min-h-[80px] resize-none"
               />
             </div>
             <div className="bg-muted/40 rounded-lg p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">
-                {selectedIds.size > 0 ? `Sending ${selectedIds.size} selected file(s):` : `Sending all ${attachments.length} file(s):`}
+                {selectedIds.size > 0
+                  ? `Sending ${selectedIds.size} selected file(s):`
+                  : `Sending all ${attachments.length} file(s):`}
               </div>
               <div className="space-y-1">
                 {(selectedIds.size > 0
-                  ? attachments.filter(a => selectedIds.has(a.id))
+                  ? attachments.filter((a) => selectedIds.has(a.id))
                   : attachments
-                ).map(a => (
-                  <div key={a.id} className="flex items-center gap-2 text-xs text-foreground">
+                ).map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 text-xs text-foreground"
+                  >
                     {getFileIcon(a.fileType)}
                     <span className="truncate">{a.fileName}</span>
-                    <span className="text-muted-foreground shrink-0">({a.fileSizeFormatted})</span>
+                    <span className="text-muted-foreground shrink-0">
+                      ({a.fileSizeFormatted})
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSendDialogOpen(false)} disabled={sending}>
+            <Button
+              variant="outline"
+              onClick={() => setSendDialogOpen(false)}
+              disabled={sending}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSend} disabled={sending || !sendEmail.trim()} className="gap-2">
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <Button
+              onClick={handleSend}
+              disabled={sending || !sendEmail.trim()}
+              className="gap-2"
+            >
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
               {sending ? "Sending…" : "Send Email"}
             </Button>
           </DialogFooter>

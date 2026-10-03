@@ -507,6 +507,7 @@ components:
       properties:
         token:
           type: string
+          description: Compatibility marker cookie-session; authentication uses a host-only HttpOnly session cookie.
         user:
           $ref: "#/components/schemas/User"
       required:
@@ -516,6 +517,20 @@ components:
     User:
       type: object
       properties:
+        mustChangePassword:
+          type: boolean
+        managerId:
+          type: integer
+          nullable: true
+        managerName:
+          type: string
+          nullable: true
+        teamName:
+          type: string
+          nullable: true
+        employeeId:
+          type: string
+          nullable: true
         id:
           type: integer
         name:
@@ -645,6 +660,13 @@ components:
     Ticket:
       type: object
       properties:
+        raisedForUserId:
+          type: integer
+          nullable: true
+        taggedUserIds:
+          type: array
+          items:
+            type: integer
         id:
           type: integer
         ticketNumber:
@@ -728,6 +750,13 @@ components:
     CreateTicketBody:
       type: object
       properties:
+        raisedForUserId:
+          type: integer
+          nullable: true
+        taggedUserIds:
+          type: array
+          items:
+            type: integer
         subject:
           type: string
         description:
@@ -753,6 +782,13 @@ components:
     UpdateTicketBody:
       type: object
       properties:
+        raisedForUserId:
+          type: integer
+          nullable: true
+        taggedUserIds:
+          type: array
+          items:
+            type: integer
         subject:
           type: string
         description:
