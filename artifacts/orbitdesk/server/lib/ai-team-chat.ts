@@ -25,7 +25,7 @@ export function botDisplayName(w: Pick<ChatWorker, "name" | "kind">): string {
 function personaFor(w: ChatWorker): string {
   const name = botDisplayName(w);
   if (w.kind === "pa")
-    return `You are ${name}, the personal AI assistant to the workspace superadmin of DEJOIY OrbitDesk. You are helpful, concise and proactive.`;
+    return `You are ${name}, the personal AI assistant to the workspace superadmin of DEJOIY OrbitDesk, and the MANAGER of the entire AI workforce (all worker bots across every department). You are helpful, concise and proactive. You have live read access to every ticket on the platform — when the user asks about tickets, use the ticket list provided in your context to answer directly with real ticket IDs, titles, statuses and departments. Never say you lack access to ticket data.`;
   const role =
     w.kind === "draft"
       ? "response-drafting specialist"
@@ -43,6 +43,76 @@ function historyText(
     .slice(-8000);
 }
 
+/**
+ * Live ticket context for AI chat. Mew (pa) sees every open ticket on the
+ * platform; department workers see their own department's tickets. Injected
+ * into the system prompt so bots answer from real data instead of claiming
+ * they have no access.
+ */
+async function ticketContextFor(w: ChatWorker): Promise<string> {
+  try {
+    const isPa = w.kind === "pa";
+    const { rows } = isPa
+      ? await pool.query(
+          `SELECT t.ticket_number, t.subject, t.status, d.name AS department,
+                  COALESCE(u.name, 'unassigned') AS assignee
+           FROM tickets t
+           LEFT JOIN departments d ON d.id = t.department_id
+           LEFT JOIN users u ON u.id = t.assignee_id
+           WHERE t.status IN ('open','assigned','in_progress','waiting')
+           ORDER BY t.created_at DESC LIMIT 60`,
+        )
+      : await pool.query(
+          `SELECT t.ticket_number, t.subject, t.status,
+                  COALESCE(u.name, 'unassigned') AS assignee
+           FROM tickets t
+           LEFT JOIN users u ON u.id = t.assignee_id
+           WHERE t.department_id = (SELECT department_id FROM orbit_ai_workers WHERE id = $1)
+             AND t.status IN ('open','assigned','in_progress','waiting')
+           ORDER BY t.created_at DESC LIMIT 40`,
+          [w.id],
+        );
+    let ctx: string;
+    if (!rows.length)
+      ctx = isPa
+        ? "\nLive ticket data: there are currently no open tickets on the platform."
+        : `\nLive ticket data: there are currently no open tickets in ${w.department ?? "your department"}.`;
+    else {
+      const lines = rows.map(
+        (r) =>
+          `- ${r.ticket_number}: "${r.subject}" [${r.status}]` +
+          (isPa && r.department ? ` (${r.department})` : "") +
+          ` — ${r.assignee}`,
+      );
+      ctx =
+        `\nLive ticket data (${rows.length} open tickets` +
+        (isPa
+          ? " across all departments"
+          : ` in ${w.department ?? "your department"}`) +
+        `, most recent first):\n` +
+        lines.join("\n");
+    }
+    // Mew also gets the AI workforce roster as their manager.
+    if (isPa) {
+      const roster = await chatRoster();
+      const workers = roster.filter((r) => r.kind !== "pa");
+      const enabled = workers.filter((r) => r.enabled).length;
+      ctx +=
+        `\n\nAI workforce you manage: ${enabled}/${workers.length} workers enabled. ` +
+        workers
+          .map(
+            (r) =>
+              `${botDisplayName(r)} (${r.department ?? "?"}, ${r.kind}${r.enabled ? "" : ", DISABLED"})`,
+          )
+          .join("; ") +
+        ".";
+    }
+    return ctx;
+  } catch {
+    return "";
+  }
+}
+
 export async function replyAsBot(
   config: AiConfig,
   worker: ChatWorker,
@@ -50,10 +120,12 @@ export async function replyAsBot(
   huddleMates: string[],
   actorId?: number,
 ): Promise<string> {
+  const ticketCtx = await ticketContextFor(worker);
   const system =
     AI_POLICY +
     "\n" +
     personaFor(worker) +
+    ticketCtx +
     "\nYou are chatting in the OrbitDesk AI team chat. Keep replies short and conversational (under 120 words). Answer in the user's language." +
     (huddleMates.length
       ? `\nYou are in a group huddle with: ${huddleMates.join(", ")}. Read the discussion so far and add your perspective briefly — agree, disagree, or ask a question.`
