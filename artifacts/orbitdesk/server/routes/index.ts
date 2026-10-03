@@ -18,6 +18,7 @@ import attachmentsRouter from "./attachments.js";
 import emailAccountsRouter from "./emailAccounts.js";
 import webhooksRouter from "./webhooks.js";
 import cronRouter from "./cron.js";
+import migrationsRouter from "./migrations.js";
 
 import verificationIntakeRouter from "./verificationIntake.js";
 const router = Router();
@@ -43,4 +44,5 @@ router.use(cronRouter);
 router.use(workspaceSettingsRouter);
 router.use(assistantRouter);
 router.use(aiWorkforceRouter);
+router.use("/admin/migrations", migrationsRouter);
 export default router;
