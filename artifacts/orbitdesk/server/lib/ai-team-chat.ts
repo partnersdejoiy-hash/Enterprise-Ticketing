@@ -25,7 +25,7 @@ export function botDisplayName(w: Pick<ChatWorker, "name" | "kind">): string {
 function personaFor(w: ChatWorker): string {
   const name = botDisplayName(w);
   if (w.kind === "pa")
-    return `You are ${name}, the personal AI assistant to the workspace superadmin of DEJOIY OrbitDesk, and the MANAGER of the entire AI workforce (all worker bots across every department). You are helpful, concise and proactive. You have live read access to every ticket on the platform — when the user asks about tickets, use the ticket list provided in your context to answer directly with real ticket IDs, titles, statuses and departments. Never say you lack access to ticket data.`;
+    return `You are ${name}, the personal AI assistant to the workspace superadmin of DEJOIY OrbitDesk, and the MANAGER of the entire AI workforce (all worker bots across every department). You are helpful, concise and proactive. You have live read access to ticket data scoped to the person you're chatting with — when they ask about tickets, use the ticket list provided in your context to answer directly with real ticket IDs, titles, statuses and departments. Never say you lack access to ticket data. Never reveal tickets outside the provided list.`;
   const role =
     w.kind === "draft"
       ? "response-drafting specialist"
@@ -44,34 +44,75 @@ function historyText(
 }
 
 /**
- * Live ticket context for AI chat. Mew (pa) sees every open ticket on the
- * platform; department workers see their own department's tickets. Injected
- * into the system prompt so bots answer from real data instead of claiming
- * they have no access.
+ * Live ticket context for AI chat. Scoped by the CHATTING USER's permissions
+ * (via ticketScope logic), not just the bot:
+ * - admin/super_admin chatting with Mew: all open tickets platform-wide
+ * - agent/manager: their department's tickets (+ personal)
+ * - external: only their own tickets
+ * Department workers are further restricted to their own department.
+ * This prevents cross-department PII disclosure via AI chat.
  */
-async function ticketContextFor(w: ChatWorker): Promise<string> {
+async function ticketContextFor(
+  w: ChatWorker,
+  actorId?: number,
+): Promise<string> {
   try {
+    // Fetch the chatting user for permission scoping.
+    let user: { id: number; role: string; departmentId: number | null } | null =
+      null;
+    if (actorId) {
+      const { rows } = await pool.query(
+        `SELECT id, role, department_id AS "departmentId" FROM users WHERE id = $1 LIMIT 1`,
+        [actorId],
+      );
+      user = rows[0] ?? null;
+    }
+    const isAdmin = !!user && ["admin", "super_admin"].includes(user.role);
     const isPa = w.kind === "pa";
-    const { rows } = isPa
-      ? await pool.query(
-          `SELECT t.ticket_number, t.subject, t.status, d.name AS department,
-                  COALESCE(u.name, 'unassigned') AS assignee
-           FROM tickets t
-           LEFT JOIN departments d ON d.id = t.department_id
-           LEFT JOIN users u ON u.id = t.assignee_id
-           WHERE t.status IN ('open','assigned','in_progress','waiting')
-           ORDER BY t.created_at DESC LIMIT 60`,
-        )
-      : await pool.query(
-          `SELECT t.ticket_number, t.subject, t.status,
-                  COALESCE(u.name, 'unassigned') AS assignee
-           FROM tickets t
-           LEFT JOIN users u ON u.id = t.assignee_id
-           WHERE t.department_id = (SELECT department_id FROM orbit_ai_workers WHERE id = $1)
-             AND t.status IN ('open','assigned','in_progress','waiting')
-           ORDER BY t.created_at DESC LIMIT 40`,
-          [w.id],
-        );
+
+    // Build the user-scoped ticket filter.
+    // Admins: no filter (all tickets). Others: personal + department scope.
+    let scopeFilter = "TRUE";
+    const params: unknown[] = [];
+    if (!isAdmin && user) {
+      const conds: string[] = [];
+      // Personal: created by, raised for, tagged, or assigned to the user.
+      conds.push(
+        `(t.created_by_id = $1 OR t.raised_for_user_id = $1 OR t.assignee_id = $1 OR $1 = ANY(t.tagged_user_ids))`,
+      );
+      params.push(user.id);
+      // Department scope for agents/managers.
+      if (
+        ["agent", "manager"].includes(user.role) &&
+        user.departmentId
+      ) {
+        conds.push(`(t.department_id = $${params.length + 1})`);
+        params.push(user.departmentId);
+      }
+      scopeFilter = `(${conds.join(" OR ")})`;
+    } else if (!isAdmin) {
+      // No user context (shouldn't happen) — show nothing.
+      scopeFilter = "FALSE";
+    }
+
+    // Department workers are additionally restricted to their own department.
+    let deptFilter = "TRUE";
+    if (!isPa) {
+      deptFilter = `t.department_id = (SELECT department_id FROM orbit_ai_workers WHERE id = $${params.length + 1})`;
+      params.push(w.id);
+    }
+
+    const { rows } = await pool.query(
+      `SELECT t.ticket_number, t.subject, t.status, d.name AS department,
+              COALESCE(u.name, 'unassigned') AS assignee
+       FROM tickets t
+       LEFT JOIN departments d ON d.id = t.department_id
+       LEFT JOIN users u ON u.id = t.assignee_id
+       WHERE t.status IN ('open','assigned','in_progress','waiting')
+         AND ${scopeFilter} AND ${deptFilter}
+       ORDER BY t.created_at DESC LIMIT ${isPa ? 60 : 40}`,
+      params,
+    );
     let ctx: string;
     if (!rows.length)
       ctx = isPa
@@ -120,7 +161,7 @@ export async function replyAsBot(
   huddleMates: string[],
   actorId?: number,
 ): Promise<string> {
-  const ticketCtx = await ticketContextFor(worker);
+  const ticketCtx = await ticketContextFor(worker, actorId);
   const system =
     AI_POLICY +
     "\n" +
