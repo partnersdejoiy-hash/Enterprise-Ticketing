@@ -39,6 +39,11 @@ await writeFile(path.join(functionDir, ".vc-config.json"), JSON.stringify({
   maxDuration: 30,
   environment: { NODE_ENV: "production", VERCEL: "1" },
 }, null, 2));
+// The bundled function is a single flattened file, so the server's
+// source-tree-relative migrations path no longer resolves. Copy the
+// migrations/ directory next to the bundle; the migrations route looks
+// for it there first (see resolveMigrationsDir in routes/migrations.ts).
+await cp(path.join(root, "migrations"), path.join(functionDir, "migrations"), { recursive: true });
 await cp(path.join(root, "artifacts/orbitdesk/dist/public"), path.join(output, "static"), { recursive: true });
 await writeFile(path.join(output, "config.json"), JSON.stringify({
   version: 3,

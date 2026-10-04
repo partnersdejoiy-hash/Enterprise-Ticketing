@@ -11,7 +11,7 @@
  */
 
 import { Router } from "express";
-import { promises as fs } from "fs";
+import { promises as fs, statSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { pool } from "@workspace/db";
@@ -35,10 +35,41 @@ router.use(
   },
 );
 
-const MIGRATIONS_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..", "..", "..", "..", "migrations",
-);
+async function listMigrationFiles(): Promise<string[]> {
+  const files = await fs.readdir(resolveMigrationsDir());
+  return files.filter((f) => f.endsWith(".sql")).sort();
+}
+
+/**
+ * Locate the migrations/ directory.
+ *
+ * - MIGRATIONS_DIR env var wins when set.
+ * - In the bundled serverless function (Vercel), esbuild flattens everything
+ *   into a single file, so the source-tree relative path no longer works;
+ *   build-vercel.mjs copies migrations/ next to the bundled entry point.
+ * - Otherwise fall back to the source-tree layout
+ *   (<repo>/artifacts/orbitdesk/server/routes -> <repo>/migrations).
+ */
+function resolveMigrationsDir(): string {
+  const fromEnv = process.env.MIGRATIONS_DIR?.trim();
+  if (fromEnv) return fromEnv;
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, "migrations"),
+    join(here, "..", "..", "..", "..", "migrations"),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (statSync(candidate).isDirectory()) return candidate;
+    } catch {
+      // try the next candidate
+    }
+  }
+  throw new Error(
+    `Migrations directory not found. Checked: ${candidates.join(", ")}. ` +
+      `Set MIGRATIONS_DIR or ensure build-vercel.mjs copied migrations/ next to the bundle.`,
+  );
+}
 
 async function ensureMigrationsTable(): Promise<void> {
   await pool.query(`
@@ -46,11 +77,6 @@ async function ensureMigrationsTable(): Promise<void> {
       filename text PRIMARY KEY,
       applied_at timestamptz NOT NULL DEFAULT now()
     )`);
-}
-
-async function listMigrationFiles(): Promise<string[]> {
-  const files = await fs.readdir(MIGRATIONS_DIR);
-  return files.filter((f) => f.endsWith(".sql")).sort();
 }
 
 router.get("/status", async (_req, res) => {
@@ -80,7 +106,7 @@ router.post("/run", async (_req, res) => {
 
     const results: { filename: string; status: string; error?: string }[] = [];
     for (const file of pending) {
-      const sql = await fs.readFile(join(MIGRATIONS_DIR, file), "utf8");
+      const sql = await fs.readFile(join(resolveMigrationsDir(), file), "utf8");
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
