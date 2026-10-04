@@ -23,7 +23,13 @@ import {
 } from "../lib/intelligence-graph.js";
 
 const router = Router();
-router.use(authMiddleware);
+// Scoped to this router's own paths: a bare router.use(authMiddleware) here
+// would gate EVERY /api/* request (this router is mounted at "/"), breaking
+// public routes like /api/auth/login.
+router.use(
+  ["/tickets", "/relationships", "/relationship-types", "/entity", "/similar"],
+  authMiddleware,
+);
 
 const STAFF_ROLES = ["super_admin", "admin", "manager", "agent"];
 

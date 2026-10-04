@@ -23,7 +23,10 @@ import { runAnalysis } from "../lib/orbit-ai.js";
 import { isValidSwarmMessageType } from "../lib/runbook-policy.js";
 
 const router = Router();
-router.use(authMiddleware);
+// Scoped to this router's own paths: a bare router.use(authMiddleware) here
+// would gate EVERY /api/* request (this router is mounted at "/"), breaking
+// public routes like /api/auth/login.
+router.use("/swarm", authMiddleware);
 
 const MANAGER_ROLES = ["super_admin", "admin", "manager"];
 
