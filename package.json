@@ -5,17 +5,27 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "18.x"
+    "node": ">=22 <25"
   },
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm --filter @workspace/orbitdesk build && pnpm --filter @workspace/api-server build",
+    "build:vercel": "pnpm --filter @workspace/orbitdesk build && node scripts/build-vercel.mjs",
+    "test:vercel": "node --test tests/vercel-bundle.test.mjs",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm --filter @workspace/orbitdesk typecheck && tsc -p artifacts/orbitdesk/tsconfig.server.json --noEmit",
+    "db:migrate": "node --import tsx scripts/src/migrate.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:browser": "node --import tsx tests/browser.mts"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
     "esbuild": "^0.27.3",
+    "playwright": "1.63.0",
     "prettier": "^3.8.1",
+    "tsx": "catalog:",
     "typescript": "~5.9.2"
-  }
+  },
+  "packageManager": "pnpm@11.25.0"
 }

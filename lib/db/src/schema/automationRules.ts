@@ -1,13 +1,13 @@
 import { pgTable, serial, text, boolean, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 
 export type AutomationCondition = {
-  field: "from_email" | "subject" | "body" | "to_email" | "tag" | "department" | "priority";
+  field: "from_email" | "subject" | "body" | "to_email" | "tag" | "department" | "priority" | "status" | "assignee" | "sla_breached";
   operator: "contains" | "not_contains" | "equals" | "not_equals" | "starts_with" | "ends_with" | "matches_regex";
   value: string;
 };
 
 export type AutomationAction = {
-  type: "set_department" | "set_priority" | "set_status" | "assign_agent" | "add_tag" | "send_notification" | "set_raised_for";
+  type: "set_department" | "set_priority" | "set_status" | "assign_agent" | "add_tag" | "send_notification" | "set_raised_for" | "remove_tag" | "assign_department_agent";
   value: string;
 };
 

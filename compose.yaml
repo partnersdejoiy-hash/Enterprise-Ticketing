@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: orbitdesk
+      POSTGRES_USER: orbitdesk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a unique database password in .env}
+    volumes:
+      - orbitdesk-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbitdesk -d orbitdesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  app:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://orbitdesk:${POSTGRES_PASSWORD}@db:5432/orbitdesk
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  orbitdesk-db:

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth";
 import { getEmailConfig, saveEmailConfig, sendEmail } from "../lib/emailService";
 import { getImapConfig, saveImapConfig, testImapConnection, restartImapPoller } from "../lib/imapService";
+import { encryptSecret } from "../lib/credential-vault";
+import { escapeHtml } from "../lib/security";
 
 const router = Router();
 
@@ -31,7 +33,9 @@ router.put("/settings/email", authMiddleware, async (req: AuthenticatedRequest, 
     if (port !== undefined) toSave["smtp_port"] = String(port);
     if (secure !== undefined) toSave["smtp_secure"] = String(secure);
     if (user !== undefined) toSave["smtp_user"] = user;
-    if (pass !== undefined && pass !== "••••••••") toSave["smtp_pass"] = pass;
+    // Legacy global SMTP password is also encrypted at rest via the vault.
+    if (pass !== undefined && pass !== "••••••••")
+      toSave["smtp_pass"] = encryptSecret(pass);
     if (fromEmail !== undefined) toSave["email_from"] = fromEmail;
     if (fromName !== undefined) toSave["email_from_name"] = fromName;
 

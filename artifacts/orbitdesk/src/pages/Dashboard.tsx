@@ -1,329 +1,311 @@
-import React from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { 
-  useGetDashboardStats, 
-  useGetDepartmentStats, 
-  useGetRecentTickets,
-  useGetAgentPerformance,
-  useGetSlaOverview,
-  getGetDashboardStatsQueryKey,
-  getGetDepartmentStatsQueryKey,
-  getGetRecentTicketsQueryKey,
-  getGetAgentPerformanceQueryKey,
-  getGetSlaOverviewQueryKey
-} from "@workspace/api-client-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Ticket, AlertCircle, Clock, CheckCircle2, Building2, ShieldAlert, FileText, Plus, ArrowRight } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Sector } from "recharts";
-import { StatusBadge, PriorityBadge } from "@/components/ui/badges";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { formatDistanceToNow } from "date-fns";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-
-function StatCard({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
-  trend,
-  isLoading 
-}: { 
-  title: string; 
-  value: React.ReactNode; 
-  description?: string; 
-  icon: any; 
-  trend?: { value: number; label: string };
-  isLoading?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <Skeleton className="h-8 w-20 mb-1" />
-        ) : (
-          <div className="text-2xl font-bold">{value}</div>
-        )}
-        
-        {description && !isLoading && (
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
-        )}
-        
-        {trend && !isLoading && (
-          <div className="flex items-center mt-1 text-xs">
-            <span className={trend.value >= 0 ? "text-emerald-600" : "text-rose-600"}>
-              {trend.value > 0 ? "+" : ""}{trend.value}%
-            </span>
-            <span className="text-muted-foreground ml-1">{trend.label}</span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
+import {
+  ArrowUpRight,
+  ArrowRight,
+  Plus,
+  RefreshCw,
+  Layers3,
+  Clock3,
+  ShieldCheck,
+  BriefcaseBusiness,
+  Globe2,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { useAuthStore } from "@/lib/auth";
+import { readApi, type Operations, statusText } from "@/lib/operations";
 export default function Dashboard() {
-  const { data: stats, isLoading: isLoadingStats } = useGetDashboardStats({
-    query: { queryKey: getGetDashboardStatsQueryKey() }
+  const user = useAuthStore((s) => s.user);
+  const query = useQuery({
+    queryKey: ["operations", user?.id],
+    queryFn: () => readApi<Operations>("/api/operations"),
   });
-  
-  const { data: deptStats, isLoading: isLoadingDept } = useGetDepartmentStats({
-    query: { queryKey: getGetDepartmentStatsQueryKey() }
-  });
-  
-  const { data: recentTickets, isLoading: isLoadingRecent } = useGetRecentTickets(
-    { limit: 5 },
-    { query: { queryKey: getGetRecentTicketsQueryKey({ limit: 5 }) } }
-  );
-
-  const { data: agentPerf, isLoading: isLoadingAgents } = useGetAgentPerformance({
-    query: { queryKey: getGetAgentPerformanceQueryKey() }
-  });
-
-  const { data: sla, isLoading: isLoadingSla } = useGetSlaOverview({
-    query: { queryKey: getGetSlaOverviewQueryKey() }
-  });
-
+  const s = query.data?.summary;
+  const max = Math.max(1, ...(query.data?.daily.map((d) => d.count) || []));
   return (
     <AppLayout>
-      <div className="p-3 sm:p-6 md:p-8 max-w-[1600px] mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Overview of ticketing operations and agent performance.</p>
+      <div className="workspace-page">
+        <div className="workspace-heading">
+          <div>
+            <p className="eyebrow">DEJOIY / SERVICE OPERATIONS</p>
+            <h1>A clear view. A better day.</h1>
+            <p>
+              Welcome back, {user?.name.split(" ")[0]}. Here’s the work that
+              needs your team.
+            </p>
+          </div>
+          <Link href="/tickets/new" className="primary-action">
+            <Plus size={17} /> New ticket
+          </Link>
         </div>
-
-        {/* Top Stats Row */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total Open Tickets"
-            value={stats?.openTickets || 0}
-            icon={Ticket}
-            trend={{ value: 12, label: "from last week" }}
-            isLoading={isLoadingStats}
-          />
-          <StatCard
-            title="Urgent Needs Attention"
-            value={stats?.urgentTickets || 0}
-            icon={AlertCircle}
-            description={`${stats?.inProgressTickets || 0} currently in progress`}
-            isLoading={isLoadingStats}
-          />
-          <StatCard
-            title="SLA Breached"
-            value={stats?.slaBreachedTickets || 0}
-            icon={ShieldAlert}
-            trend={{ value: -5, label: "from last week" }}
-            isLoading={isLoadingStats}
-          />
-          <StatCard
-            title="Avg Resolution Time"
-            value={`${stats?.avgResolutionHours.toFixed(1) || 0}h`}
-            icon={Clock}
-            description="Across all departments"
-            isLoading={isLoadingStats}
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          {[
-            { href: "/documents", icon: FileText, label: "Request Document", desc: "Experience letter, salary slip, etc.", color: "text-blue-600 bg-blue-50 border-blue-100" },
-            { href: "/tickets/new", icon: Plus, label: "New Ticket", desc: "Raise a support request", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-            { href: "/tickets?priority=urgent", icon: AlertCircle, label: "Urgent Tickets", desc: "View tickets needing immediate attention", color: "text-red-600 bg-red-50 border-red-100" },
-            { href: "/tickets?status=open", icon: Ticket, label: "Open Tickets", desc: "Browse all open support tickets", color: "text-amber-600 bg-amber-50 border-amber-100" },
-          ].map((action) => (
-            <Link key={action.href} href={action.href}>
-              <div className={`group flex flex-col gap-2 rounded-xl border p-4 cursor-pointer transition-all hover:shadow-sm hover:-translate-y-0.5 ${action.color.split(" ").slice(1).join(" ")}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${action.color.split(" ")[1]} bg-white/70`}>
-                  <action.icon className={`h-4 w-4 ${action.color.split(" ")[0]}`} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground leading-tight">{action.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{action.desc}</p>
-                </div>
-                <ArrowRight className={`h-3.5 w-3.5 ${action.color.split(" ")[0]} opacity-0 group-hover:opacity-100 transition-opacity ml-auto`} />
-              </div>
+        <section className="operations-banner">
+          <div>
+            <span className="banner-label">
+              <span /> YOUR OPERATIONS, CONNECTED
+            </span>
+            <h2>
+              Great service starts
+              <br />
+              with clear ownership.
+            </h2>
+            <p>
+              One workspace for requests, evidence and the next right action.
+            </p>
+            <Link href="/tickets">
+              Open your work queue <ArrowUpRight size={17} />
             </Link>
-          ))}
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-7 lg:grid-cols-7">
-          {/* Main Chart */}
-          <Card className="md:col-span-4">
-            <CardHeader>
-              <CardTitle>Department Workload</CardTitle>
-              <CardDescription>Open tickets distributed across departments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full">
-                {isLoadingDept ? (
-                  <Skeleton className="w-full h-full" />
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={deptStats || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <XAxis 
-                        dataKey="departmentName" 
-                        fontSize={12} 
-                        tickLine={false} 
-                        axisLine={false}
-                      />
-                      <YAxis 
-                        fontSize={12} 
-                        tickLine={false} 
-                        axisLine={false}
-                        tickFormatter={(value) => `${value}`}
-                      />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                        contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
-                      />
-                      <Bar dataKey="openCount" radius={[4, 4, 0, 0]}>
-                        {(deptStats || []).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color || 'var(--primary)'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* SLA Chart */}
-          <Card className="md:col-span-3">
-            <CardHeader>
-              <CardTitle>SLA Compliance</CardTitle>
-              <CardDescription>Target vs actual response times</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center items-center h-[300px]">
-              {isLoadingSla ? (
-                <Skeleton className="w-[200px] h-[200px] rounded-full" />
-              ) : (
-                <div className="relative w-full h-full flex flex-col items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: 'Compliant', value: sla?.compliant || 0, fill: '#10b981' },
-                          { name: 'At Risk', value: sla?.atRisk || 0, fill: '#f59e0b' },
-                          { name: 'Breached', value: sla?.breached || 0, fill: '#ef4444' },
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={80}
-                        outerRadius={100}
-                        paddingAngle={2}
-                        dataKey="value"
-                      />
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-3xl font-bold">{sla?.complianceRate || 0}%</span>
-                    <span className="text-xs text-muted-foreground">Compliance</span>
+          </div>
+          <div className="banner-visual" aria-hidden="true">
+            <div />
+            <div />
+            <div />
+            <span>
+              <Layers3 size={37} />
+            </span>
+          </div>
+        </section>
+        {query.isError ? (
+          <div className="workspace-error" role="alert">
+            <AlertCircle />
+            {query.error.message}
+            <button onClick={() => query.refetch()}>Try again</button>
+          </div>
+        ) : (
+          <>
+            <div className="metrics-grid">
+              {[
+                {
+                  label: "Active requests",
+                  value: s?.active,
+                  icon: Layers3,
+                  note: "Open, assigned and in progress",
+                },
+                {
+                  label: "Awaiting owner",
+                  value: s?.unassigned,
+                  icon: Clock3,
+                  note: "Ready for your team to pick up",
+                },
+                {
+                  label: "Past target",
+                  value: s?.overdue,
+                  icon: AlertCircle,
+                  note: "Active requests past their deadline",
+                },
+                {
+                  label: "Resolved & closed",
+                  value: s?.resolved,
+                  icon: CheckCircle2,
+                  note: "Completed across your visible queue",
+                },
+              ].map((m) => (
+                <article className="metric-card" key={m.label}>
+                  <div>
+                    <span>{m.label}</span>
+                    <m.icon size={17} />
+                  </div>
+                  <strong>{query.isLoading ? "—" : (m.value ?? 0)}</strong>
+                  <p>{m.note}</p>
+                </article>
+              ))}
+            </div>
+            <div className="operations-columns">
+              <section className="workspace-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">THE WORKSPACE</p>
+                    <h2>Specialist queues</h2>
+                  </div>
+                  <ShieldCheck size={20} />
+                </div>
+                <Link className="queue-link" href="/employment-verification">
+                  <span className="queue-icon">
+                    <BriefcaseBusiness size={22} />
+                  </span>
+                  <div>
+                    <h3>Employment verification</h3>
+                    <p>Requests, authorisations and review history</p>
+                  </div>
+                  <strong>{s?.employment ?? "—"}</strong>
+                  <ArrowUpRight size={18} />
+                </Link>
+                <Link className="queue-link" href="/background-verification">
+                  <span className="queue-icon mint">
+                    <ShieldCheck size={22} />
+                  </span>
+                  <div>
+                    <h3>Background verification</h3>
+                    <p>A dedicated workspace for BGV requests</p>
+                  </div>
+                  <strong>{s?.bgv ?? "—"}</strong>
+                  <ArrowUpRight size={18} />
+                </Link>
+                <div className="panel-footnote">
+                  <Globe2 size={15} />
+                  {s?.website ?? 0} website requests recorded in your visible
+                  queue
+                </div>
+              </section>
+              <section className="workspace-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">LAST 7 DAYS</p>
+                    <h2>Incoming requests</h2>
+                  </div>
+                  <span className="small-label">Recorded activity</span>
+                </div>
+                <div
+                  className="activity-chart"
+                  aria-label="Requests received over the last seven days"
+                >
+                  {query.data?.daily.length ? (
+                    query.data.daily.map((d) => (
+                      <div className="chart-column" key={d.day}>
+                        <span>{d.count}</span>
+                        <div
+                          style={{
+                            height: `${Math.max(5, (d.count / max) * 100)}px`,
+                          }}
+                        />
+                        <small>
+                          {new Date(d.day + "T12:00:00").toLocaleDateString(
+                            "en-IN",
+                            { day: "numeric", month: "short" },
+                          )}
+                        </small>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="empty-copy">
+                      Your activity will appear here when requests arrive.
+                    </p>
+                  )}
+                </div>
+                <div className="panel-footnote">
+                  Counts follow your access permissions.
+                </div>
+              </section>
+            </div>
+            {!!query.data?.departments.length && (
+              <section className="workspace-panel department-overview">
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">DEPARTMENT VIEW</p>
+                    <h2>Clear routes. Shared accountability.</h2>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Recent Tickets */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Latest tickets needing attention</CardDescription>
-              </div>
-              <Link href="/tickets" className="text-sm text-primary hover:underline">
-                View all
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {isLoadingRecent ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-3 w-2/3" />
-                      </div>
-                    </div>
-                  ))
-                ) : recentTickets?.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">No recent tickets</div>
-                ) : (
-                  recentTickets?.map((ticket) => (
-                    <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors -mx-3">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium leading-none">{ticket.subject}</p>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                            {formatDistanceToNow(new Date(ticket.createdAt), { addSuffix: true })}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-muted-foreground font-mono">{ticket.ticketNumber}</span>
-                          <StatusBadge status={ticket.status} />
-                          <PriorityBadge priority={ticket.priority} />
-                        </div>
-                      </div>
+                <div className="department-chips">
+                  {query.data.departments.map((d) => (
+                    <Link
+                      key={d.id ?? 0}
+                      href={
+                        d.id
+                          ? `/tickets?departmentId=${d.id}`
+                          : "/tickets?unassignedDepartment=true"
+                      }
+                    >
+                      <span>{d.name || "Admin triage"}</span>
+                      <strong>{d.count}</strong>
+                      <ArrowUpRight size={15} />
                     </Link>
-                  ))
+                  ))}
+                </div>
+              </section>
+            )}
+            <section className="workspace-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">KEEP THINGS MOVING</p>
+                  <h2>Latest requests</h2>
+                </div>
+                <button
+                  className="quiet-button"
+                  onClick={() => query.refetch()}
+                  disabled={query.isFetching}
+                >
+                  <RefreshCw
+                    size={15}
+                    className={query.isFetching ? "animate-spin" : ""}
+                  />{" "}
+                  Refresh
+                </button>
+              </div>
+              <div className="work-table-wrap">
+                <table className="work-table">
+                  <thead>
+                    <tr>
+                      <th>Request</th>
+                      <th>Queue</th>
+                      <th>Status</th>
+                      <th>Received</th>
+                      <th>
+                        <span className="sr-only">Open</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {query.data?.recent.map((t) => (
+                      <tr key={t.id}>
+                        <td>
+                          <Link href={`/tickets/${t.id}`}>
+                            <small>{t.ticketNumber}</small>
+                            <strong>{t.subject}</strong>
+                          </Link>
+                        </td>
+                        <td>
+                          {t.tags.includes("bgv-request")
+                            ? "BGV"
+                            : t.tags.includes("employment-verification")
+                              ? "Employment"
+                              : "Service desk"}
+                        </td>
+                        <td>
+                          <span className={`work-status status-${t.status}`}>
+                            {statusText[t.status]}
+                          </span>
+                        </td>
+                        <td>
+                          {new Date(t.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </td>
+                        <td>
+                          <Link
+                            href={`/tickets/${t.id}`}
+                            aria-label={`Open ${t.ticketNumber}`}
+                          >
+                            <ArrowUpRight size={17} />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!query.isLoading && !query.data?.recent.length && (
+                  <div className="workspace-empty">
+                    <Layers3 />
+                    <h3>Your workspace is ready.</h3>
+                    <p>
+                      New requests will appear here, with their owner and next
+                      step.
+                    </p>
+                    <Link href="/tickets/new">
+                      Create a ticket <ArrowRight size={15} />
+                    </Link>
+                  </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Agent Performance */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Agents</CardTitle>
-              <CardDescription>Based on resolution time and volume</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {isLoadingAgents ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-3 w-1/3" />
-                      </div>
-                    </div>
-                  ))
-                ) : agentPerf?.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">No data available</div>
-                ) : (
-                  agentPerf?.slice(0, 5).map((agent) => (
-                    <div key={agent.agentId} className="flex items-center gap-4">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={agent.avatar || ""} />
-                        <AvatarFallback>{agent.agentName.charAt(0).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">{agent.agentName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {agent.resolvedCount} resolved • {agent.avgResolutionHours.toFixed(1)}h avg
-                        </p>
-                      </div>
-                      <div className="text-sm font-medium text-emerald-600">
-                        {agent.satisfactionScore ? `${agent.satisfactionScore}% CSAT` : '-'}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </section>
+          </>
+        )}
+        <p className="workspace-timestamp">
+          {query.data
+            ? `Updated ${new Date(query.data.asOf).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · Only requests you can access are shown.`
+            : "Loading your workspace…"}
+        </p>
       </div>
     </AppLayout>
   );

@@ -2,6 +2,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import { db, webhookEndpointsTable, systemSettingsTable, eq } from "@workspace/db";
 import { authMiddleware, AuthenticatedRequest } from "../middlewares/auth.js";
+import { assertUrlSafe, SsrfBlocked } from "../lib/ssrf-guard.js";
 
 const router = Router();
 
@@ -33,6 +34,10 @@ export async function dispatchOutgoingWebhooks(event: string, payload: Record<st
 
     for (const ep of matching) {
       try {
+        // Defense in depth: re-validate stored URLs at dispatch time —
+        // rows created before the SSRF guard (or edited directly in the DB)
+        // must still never reach internal infrastructure.
+        await assertUrlSafe(ep.url);
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (ep.secretHeader) headers["X-OrbitDesk-Secret"] = ep.secretHeader;
         const res = await fetch(ep.url, {
@@ -43,6 +48,10 @@ export async function dispatchOutgoingWebhooks(event: string, payload: Record<st
         });
         console.log("[webhook] dispatched", event, ep.url, "status:", res.status);
       } catch (err) {
+        if (err instanceof SsrfBlocked) {
+          console.warn("[webhook] dispatch blocked (SSRF guard):", ep.url);
+          continue;
+        }
         console.warn("[webhook] outgoing failed", event, ep.url, err);
       }
     }
@@ -139,7 +148,17 @@ router.post("/endpoints", authMiddleware, async (req: AuthenticatedRequest, res)
     name: string; url: string; events: string[]; secretHeader?: string; enabled?: boolean;
   };
   if (!name || !url) { res.status(400).json({ error: "name and url are required" }); return; }
-  try { new URL(url); } catch { res.status(400).json({ error: "url must be a valid URL" }); return; }
+  try {
+    // SSRF guard: blocks private/loopback/link-local/metadata IPs.
+    await assertUrlSafe(url);
+  } catch (err) {
+    if (err instanceof SsrfBlocked) {
+      res.status(400).json({ error: err.message });
+    } else {
+      res.status(400).json({ error: "url must be a valid URL" });
+    }
+    return;
+  }
 
   const [ep] = await db.insert(webhookEndpointsTable).values({
     name,
@@ -157,7 +176,16 @@ router.put("/endpoints/:id", authMiddleware, async (req: AuthenticatedRequest, r
 
   const id = Number(req.params.id);
   const { name, url, events, secretHeader, enabled } = req.body;
-  if (url) { try { new URL(url); } catch { res.status(400).json({ error: "Invalid URL" }); return; } }
+  if (url) {
+    try {
+      await assertUrlSafe(url);
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof SsrfBlocked ? err.message : "Invalid URL",
+      });
+      return;
+    }
+  }
 
   const [ep] = await db
     .update(webhookEndpointsTable)
@@ -185,6 +213,16 @@ router.post("/endpoints/:id/test", authMiddleware, async (req: AuthenticatedRequ
   const id = Number(req.params.id);
   const [ep] = await db.select().from(webhookEndpointsTable).where(eq(webhookEndpointsTable.id, id)).limit(1);
   if (!ep) { res.status(404).json({ error: "Not found" }); return; }
+
+  try {
+    await assertUrlSafe(ep.url);
+  } catch (err) {
+    res.json({
+      success: false,
+      error: err instanceof SsrfBlocked ? err.message : "Invalid URL",
+    });
+    return;
+  }
 
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };

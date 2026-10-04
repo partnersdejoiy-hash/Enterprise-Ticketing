@@ -1,5 +1,12 @@
 import nodemailer from "nodemailer";
 import { db, systemSettingsTable, emailAccountsTable, eq } from "@workspace/db";
+import { escapeHtml } from "./security.js";
+import { getDecryptedCredentials } from "./email-credentials.js";
+import {
+  encryptSecret,
+  decryptSecret,
+  isEncrypted,
+} from "./credential-vault.js";
 
 export interface EmailConfig {
   host: string;
@@ -15,46 +22,109 @@ export interface EmailConfig {
 const DEFAULT_FROM_EMAIL = "noreply.notifications@dejoiy.com";
 const DEFAULT_FROM_NAME = "OrbitDesk by Dejoiy";
 
+export const EMAIL_NOT_CONFIGURED_ERROR = "Email service is not configured";
+
+export interface AgentFromAddress {
+  email: string;
+  name: string;
+}
+
+/**
+ * Per-agent sender identity for AI team chat email, e.g. "Mew" ->
+ * { email: "mew-orbitdesk@dejoiy.com", name: "Mew · OrbitDesk AI" }.
+ * Requires the dejoiy.com domain to be a verified identity in the
+ * SMTP provider (e.g. Amazon SES) for delivery to succeed.
+ */
+export function getAgentFromAddress(workerName: string): AgentFromAddress {
+  const display = (workerName || "").trim() || "Agent";
+  const slug = display.toLowerCase().replace(/[^a-z0-9]/g, "") || "agent";
+  return {
+    email: `${slug}-orbitdesk@dejoiy.com`,
+    name: `${display} · OrbitDesk AI`,
+  };
+}
+
+export interface SendEmailOptions {
+  fromEmail?: string;
+  fromName?: string;
+}
+
 async function getEmailConfig(): Promise<EmailConfig> {
   try {
     // First: try primary account from email_accounts table
     const accounts = await db.select().from(emailAccountsTable);
-    const primary = accounts.find(a => a.isPrimarySender && a.smtpEnabled && a.smtpHost && a.smtpUser);
-    const anySmtp = accounts.find(a => a.smtpEnabled && a.smtpHost && a.smtpUser);
+    const primary = accounts.find(
+      (a) => a.isPrimarySender && a.smtpEnabled && a.smtpHost && a.smtpUser,
+    );
+    const anySmtp = accounts.find(
+      (a) => a.smtpEnabled && a.smtpHost && a.smtpUser,
+    );
     const chosen = primary ?? anySmtp;
     if (chosen) {
+      // Passwords are stored encrypted at rest (migration 009); decrypt for
+      // the SMTP handshake only. Unmigrated rows are migrated on read.
+      const creds = await getDecryptedCredentials(chosen.id).catch(() => ({
+        smtpPass: "",
+        imapPass: "",
+      }));
       return {
         host: chosen.smtpHost ?? "",
         port: chosen.smtpPort ?? 587,
         secure: !!chosen.smtpSecure,
         user: chosen.smtpUser ?? "",
-        pass: chosen.smtpPass ?? "",
-        fromEmail: chosen.smtpFromEmail || chosen.smtpUser || DEFAULT_FROM_EMAIL,
+        pass: creds.smtpPass,
+        fromEmail:
+          chosen.smtpFromEmail || chosen.smtpUser || DEFAULT_FROM_EMAIL,
         fromName: chosen.smtpFromName || DEFAULT_FROM_NAME,
         enabled: true,
       };
     }
 
-    // Fallback: legacy system_settings SMTP config
+    // Fallback: legacy system_settings SMTP config. The password may be
+    // vault-encrypted (new writes) or legacy plaintext (old rows) — handle
+    // both; new writes via PUT /settings/email are always encrypted.
     const rows = await db.select().from(systemSettingsTable);
     const get = (key: string) => rows.find((r) => r.key === key)?.value ?? "";
+    const legacyPass = get("smtp_pass") || "";
+    let legacyDecrypted = "";
+    try {
+      legacyDecrypted = legacyPass
+        ? isEncrypted(legacyPass)
+          ? decryptSecret(legacyPass)
+          : legacyPass
+        : "";
+    } catch {
+      legacyDecrypted = "";
+    }
     return {
       host: get("smtp_host") || "",
       port: parseInt(get("smtp_port") || "587"),
       secure: get("smtp_secure") === "true",
       user: get("smtp_user") || "",
-      pass: get("smtp_pass") || "",
+      pass: legacyDecrypted,
       fromEmail: get("email_from") || DEFAULT_FROM_EMAIL,
       fromName: get("email_from_name") || DEFAULT_FROM_NAME,
       enabled: get("email_enabled") === "true",
     };
   } catch {
-    return { host: "", port: 587, secure: false, user: "", pass: "", fromEmail: DEFAULT_FROM_EMAIL, fromName: DEFAULT_FROM_NAME, enabled: false };
+    return {
+      host: "",
+      port: 587,
+      secure: false,
+      user: "",
+      pass: "",
+      fromEmail: DEFAULT_FROM_EMAIL,
+      fromName: DEFAULT_FROM_NAME,
+      enabled: false,
+    };
   }
 }
 
 function createTransporter(cfg: EmailConfig) {
   return nodemailer.createTransport({
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 8000,
     host: cfg.host,
     port: cfg.port,
     secure: cfg.secure,
@@ -87,7 +157,10 @@ function baseTemplate(title: string, bodyHtml: string): string {
 }
 
 function statusBadge(status: string): string {
-  return `<span class="badge badge-${status}">${status.replace("_", " ")}</span>`;
+  // The CSS class is whitelisted (alphanumeric/underscore only); the label
+  // is HTML-escaped. Status values can be user-influenced via ticket data.
+  const safeClass = String(status).replace(/[^a-z0-9_]/gi, "") || "open";
+  return `<span class="badge badge-${safeClass}">${escapeHtml(String(status).replace("_", " "))}</span>`;
 }
 
 export interface EmailAttachmentInput {
@@ -120,20 +193,26 @@ export async function sendEmail(
   html: string,
   attachments?: EmailAttachmentInput[],
   cc?: string | string[],
+  opts?: SendEmailOptions,
 ): Promise<void> {
   const cfg = await getEmailConfig();
   if (!cfg.enabled || !cfg.host) {
-    console.error(`[email] Email not configured/disabled. Would have sent to ${Array.isArray(to) ? to.join(", ") : to}: ${subject}`);
-    return;
+    throw new Error(EMAIL_NOT_CONFIGURED_ERROR);
   }
+  const fromEmail = opts?.fromEmail?.trim() || cfg.fromEmail;
+  const fromName = opts?.fromName?.trim() || cfg.fromName;
   try {
     const transporter = createTransporter(cfg);
     const recipients = Array.isArray(to) ? to.join(", ") : to;
-    const ccRecipients = cc ? (Array.isArray(cc) ? cc.join(", ") : cc) : undefined;
-    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${cfg.fromEmail.split("@")[1] || "orbitdesk.app"}>`;
+    const ccRecipients = cc
+      ? Array.isArray(cc)
+        ? cc.join(", ")
+        : cc
+      : undefined;
+    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${fromEmail.split("@")[1] || "orbitdesk.app"}>`;
     await transporter.sendMail({
-      from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
-      replyTo: `"${cfg.fromName}" <${cfg.fromEmail}>`,
+      from: `"${fromName}" <${fromEmail}>`,
+      replyTo: `"${fromName}" <${fromEmail}>`,
       to: recipients,
       ...(ccRecipients ? { cc: ccRecipients } : {}),
       subject,
@@ -141,123 +220,203 @@ export async function sendEmail(
       headers: {
         "X-Mailer": "OrbitDesk by Dejoiy",
         "X-Priority": "3",
-        "Precedence": "bulk",
-        "List-Unsubscribe": `<mailto:${cfg.fromEmail}?subject=unsubscribe>`,
+        Precedence: "bulk",
+        "List-Unsubscribe": `<mailto:${fromEmail}?subject=unsubscribe>`,
       },
       text: htmlToText(html),
       html,
-      attachments: attachments?.map(a => ({
+      attachments: attachments?.map((a) => ({
         filename: a.filename,
-        content: Buffer.from(a.content.replace(/^data:[^;]+;base64,/, ""), "base64"),
+        content: Buffer.from(
+          a.content.replace(/^data:[^;]+;base64,/, ""),
+          "base64",
+        ),
         contentType: a.contentType,
       })),
     });
-    console.error(`[email] Sent "${subject}" to ${recipients}${ccRecipients ? ` (cc: ${ccRecipients})` : ""}`);
   } catch (err) {
-    console.error(`[email] Failed to send email:`, err);
+    throw new Error("Email delivery failed");
   }
 }
 
 export async function sendTicketCreatedEmail(opts: {
-  ticketNumber: string; subject: string; status: string; priority: string;
-  departmentName?: string; createdByName: string;
-  raisedForName?: string; raisedForEmail?: string;
-  createdByEmail?: string; ccEmails?: string[];
+  ticketNumber: string;
+  subject: string;
+  status: string;
+  priority: string;
+  departmentName?: string;
+  createdByName: string;
+  raisedForName?: string;
+  raisedForEmail?: string;
+  createdByEmail?: string;
+  ccEmails?: string[];
 }): Promise<void> {
   const to: string[] = [];
   if (opts.createdByEmail) to.push(opts.createdByEmail);
-  if (opts.raisedForEmail && opts.raisedForEmail !== opts.createdByEmail) to.push(opts.raisedForEmail);
+  if (opts.raisedForEmail && opts.raisedForEmail !== opts.createdByEmail)
+    to.push(opts.raisedForEmail);
   if (!to.length) return;
 
   const forLine = opts.raisedForName
-    ? `<p>This ticket was raised by <strong>${opts.createdByName}</strong> on behalf of <strong>${opts.raisedForName}</strong>.</p>`
+    ? `<p>This ticket was raised by <strong>${escapeHtml(opts.createdByName)}</strong> on behalf of <strong>${escapeHtml(opts.raisedForName)}</strong>.</p>`
     : `<p>Your ticket has been received and assigned a tracking number. Our team will review and respond shortly.</p>`;
 
-  const html = baseTemplate(`Ticket Created: ${opts.ticketNumber}`, `
+  const html = baseTemplate(
+    `Ticket Created: ${escapeHtml(opts.ticketNumber)}`,
+    `
     <h2>Ticket Created Successfully</h2>
     ${forLine}
     <div class="card">
-      <div class="card-row"><span class="label">Ticket #</span><span class="val">${opts.ticketNumber}</span></div>
-      <div class="card-row"><span class="label">Subject</span><span class="val">${opts.subject}</span></div>
+      <div class="card-row"><span class="label">Ticket #</span><span class="val">${escapeHtml(opts.ticketNumber)}</span></div>
+      <div class="card-row"><span class="label">Subject</span><span class="val">${escapeHtml(opts.subject)}</span></div>
       <div class="card-row"><span class="label">Status</span><span class="val">${statusBadge(opts.status)}</span></div>
       <div class="card-row"><span class="label">Priority</span><span class="val">${statusBadge(opts.priority)}</span></div>
-      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${opts.departmentName}</span></div>` : ""}
+      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${escapeHtml(opts.departmentName)}</span></div>` : ""}
     </div>
     <p>You will be notified when there are updates. Please keep this ticket number for reference.</p>
-  `);
+  `,
+  );
 
-  const cc = (opts.ccEmails ?? []).filter(e => !to.includes(e));
-  await sendEmail(to, `[OrbitDesk] Ticket Created: ${opts.ticketNumber}`, html, undefined, cc.length ? cc : undefined);
+  const cc = (opts.ccEmails ?? []).filter((e) => !to.includes(e));
+  await sendEmail(
+    to,
+    `[OrbitDesk] Ticket Created: ${opts.ticketNumber}`,
+    html,
+    undefined,
+    cc.length ? cc : undefined,
+  );
 }
 
 export async function sendTicketStatusEmail(opts: {
-  ticketNumber: string; subject: string; oldStatus: string; newStatus: string;
-  priority: string; departmentName?: string; changedByName: string;
-  raisedForEmail?: string; createdByEmail?: string;
+  ticketNumber: string;
+  subject: string;
+  oldStatus: string;
+  newStatus: string;
+  priority: string;
+  departmentName?: string;
+  changedByName: string;
+  raisedForEmail?: string;
+  createdByEmail?: string;
 }): Promise<void> {
   const to: string[] = [];
   if (opts.createdByEmail) to.push(opts.createdByEmail);
-  if (opts.raisedForEmail && opts.raisedForEmail !== opts.createdByEmail) to.push(opts.raisedForEmail);
-  if (!to.length) return;
+  if (opts.raisedForEmail && opts.raisedForEmail !== opts.createdByEmail)
+    to.push(opts.raisedForEmail);
+  const { acceptsStatusEmail } = await import("./ticket-notifications.js");
+  const recipients = (
+    await Promise.all(
+      to.map(async (email) =>
+        (await acceptsStatusEmail(email)) ? email : null,
+      ),
+    )
+  ).filter((email): email is string => !!email);
+  if (!recipients.length) return;
 
   const actionMap: Record<string, { title: string; msg: string }> = {
-    resolved: { title: "Ticket Resolved", msg: `Your ticket has been resolved by <strong>${opts.changedByName}</strong>. If you have further questions, please open a new ticket.` },
-    closed: { title: "Ticket Closed", msg: `Your ticket has been closed. Thank you for using OrbitDesk.` },
-    in_progress: { title: "Ticket In Progress", msg: `Our team is now actively working on your ticket.` },
-    waiting: { title: "Ticket Awaiting Your Response", msg: `Your ticket is waiting for additional information from you.` },
-    assigned: { title: "Ticket Assigned", msg: `Your ticket has been assigned and will be attended to shortly.` },
+    resolved: {
+      title: "Ticket Resolved",
+      msg: `Your ticket has been resolved by <strong>${escapeHtml(opts.changedByName)}</strong>. If you have further questions, please open a new ticket.`,
+    },
+    closed: {
+      title: "Ticket Closed",
+      msg: `Your ticket has been closed. Thank you for using OrbitDesk.`,
+    },
+    in_progress: {
+      title: "Ticket In Progress",
+      msg: `Our team is now actively working on your ticket.`,
+    },
+    waiting: {
+      title: "Ticket Awaiting Your Response",
+      msg: `Your ticket is waiting for additional information from you.`,
+    },
+    assigned: {
+      title: "Ticket Assigned",
+      msg: `Your ticket has been assigned and will be attended to shortly.`,
+    },
     open: { title: "Ticket Reopened", msg: `Your ticket has been reopened.` },
   };
-  const info = actionMap[opts.newStatus] ?? { title: `Ticket Status Updated`, msg: `Your ticket status has been updated to <strong>${opts.newStatus.replace("_", " ")}</strong>.` };
+  const info = actionMap[opts.newStatus] ?? {
+    title: `Ticket Status Updated`,
+    msg: `Your ticket status has been updated to <strong>${escapeHtml(opts.newStatus.replace("_", " "))}</strong>.`,
+  };
 
-  const html = baseTemplate(`${info.title}: ${opts.ticketNumber}`, `
-    <h2>${info.title}</h2>
+  const html = baseTemplate(
+    `${escapeHtml(info.title)}: ${escapeHtml(opts.ticketNumber)}`,
+    `
+    <h2>${escapeHtml(info.title)}</h2>
     <p>${info.msg}</p>
     <div class="card">
-      <div class="card-row"><span class="label">Ticket #</span><span class="val">${opts.ticketNumber}</span></div>
-      <div class="card-row"><span class="label">Subject</span><span class="val">${opts.subject}</span></div>
+      <div class="card-row"><span class="label">Ticket #</span><span class="val">${escapeHtml(opts.ticketNumber)}</span></div>
+      <div class="card-row"><span class="label">Subject</span><span class="val">${escapeHtml(opts.subject)}</span></div>
       <div class="card-row"><span class="label">Previous Status</span><span class="val">${statusBadge(opts.oldStatus)}</span></div>
       <div class="card-row"><span class="label">New Status</span><span class="val">${statusBadge(opts.newStatus)}</span></div>
-      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${opts.departmentName}</span></div>` : ""}
+      ${opts.departmentName ? `<div class="card-row"><span class="label">Department</span><span class="val">${escapeHtml(opts.departmentName)}</span></div>` : ""}
     </div>
-  `);
+  `,
+  );
 
-  await sendEmail(to, `[OrbitDesk] ${info.title}: ${opts.ticketNumber}`, html);
+  await sendEmail(
+    recipients,
+    `[OrbitDesk] ${info.title}: ${opts.ticketNumber}`,
+    html,
+  );
 }
 
 export async function sendDocumentRequestEmail(opts: {
-  ticketNumber: string; subject: string; status: string;
-  requesterEmail: string; requesterName: string; changedByName?: string;
+  ticketNumber: string;
+  subject: string;
+  status: string;
+  requesterEmail: string;
+  requesterName: string;
+  changedByName?: string;
 }): Promise<void> {
   if (!opts.requesterEmail) return;
 
   const isNew = opts.status === "open";
-  const title = isNew ? "Document Request Received" : `Document Request ${opts.status.replace("_", " ")}`;
+  const title = isNew
+    ? "Document Request Received"
+    : `Document Request ${opts.status.replace("_", " ")}`;
 
-  const html = baseTemplate(`${title}: ${opts.ticketNumber}`, `
-    <h2>${title}</h2>
-    <p>Hi <strong>${opts.requesterName}</strong>,</p>
-    <p>${isNew
-      ? "Your document request has been received and is being processed by the HR team."
-      : `Your document request status has been updated${opts.changedByName ? ` by <strong>${opts.changedByName}</strong>` : ""}.`
+  const html = baseTemplate(
+    `${escapeHtml(title)}: ${escapeHtml(opts.ticketNumber)}`,
+    `
+    <h2>${escapeHtml(title)}</h2>
+    <p>Hi <strong>${escapeHtml(opts.requesterName)}</strong>,</p>
+    <p>${
+      isNew
+        ? "Your document request has been received and is being processed by the HR team."
+        : `Your document request status has been updated${opts.changedByName ? ` by <strong>${escapeHtml(opts.changedByName)}</strong>` : ""}.`
     }</p>
     <div class="card">
-      <div class="card-row"><span class="label">Request #</span><span class="val">${opts.ticketNumber}</span></div>
-      <div class="card-row"><span class="label">Document</span><span class="val">${opts.subject.replace("Document Request: ", "")}</span></div>
+      <div class="card-row"><span class="label">Request #</span><span class="val">${escapeHtml(opts.ticketNumber)}</span></div>
+      <div class="card-row"><span class="label">Document</span><span class="val">${escapeHtml(opts.subject.replace("Document Request: ", ""))}</span></div>
       <div class="card-row"><span class="label">Status</span><span class="val">${statusBadge(opts.status)}</span></div>
     </div>
     <p>${isNew ? "You will receive updates via email as your request progresses." : ""}</p>
-  `);
+  `,
+  );
 
-  await sendEmail(opts.requesterEmail, `[OrbitDesk] ${title}: ${opts.ticketNumber}`, html);
+  await sendEmail(
+    opts.requesterEmail,
+    `[OrbitDesk] ${title}: ${opts.ticketNumber}`,
+    html,
+  );
 }
 
-export async function saveEmailConfig(config: Partial<EmailConfig>): Promise<void> {
+export async function saveEmailConfig(
+  config: Partial<EmailConfig>,
+): Promise<void> {
   const entries: [string, string][] = [
-    ["email_enabled", config.enabled !== undefined ? String(config.enabled) : undefined],
+    [
+      "email_enabled",
+      config.enabled !== undefined ? String(config.enabled) : undefined,
+    ],
     ["smtp_host", config.host],
     ["smtp_port", config.port !== undefined ? String(config.port) : undefined],
-    ["smtp_secure", config.secure !== undefined ? String(config.secure) : undefined],
+    [
+      "smtp_secure",
+      config.secure !== undefined ? String(config.secure) : undefined,
+    ],
     ["smtp_user", config.user],
     ["smtp_pass", config.pass],
     ["email_from", config.fromEmail],
@@ -265,9 +424,39 @@ export async function saveEmailConfig(config: Partial<EmailConfig>): Promise<voi
   ].filter(([, v]) => v !== undefined) as [string, string][];
 
   for (const [key, value] of entries) {
-    await db.insert(systemSettingsTable).values({ key, value })
-      .onConflictDoUpdate({ target: systemSettingsTable.key, set: { value, updatedAt: new Date() } });
+    await db
+      .insert(systemSettingsTable)
+      .values({ key, value })
+      .onConflictDoUpdate({
+        target: systemSettingsTable.key,
+        set: { value, updatedAt: new Date() },
+      });
   }
 }
 
 export { getEmailConfig };
+
+/**
+ * Send an email as an AI agent (e.g. "Mew" -> "mew-orbitdesk@dejoiy.com").
+ * Never throws: if email is not configured the send is skipped with a
+ * console warning, so automatic agent emails can never break ticket flows.
+ */
+export async function sendAgentEmail(
+  workerName: string,
+  to: string,
+  subject: string,
+  htmlBody: string,
+): Promise<void> {
+  const from = getAgentFromAddress(workerName);
+  try {
+    await sendEmail(to, subject, htmlBody, undefined, undefined, {
+      fromEmail: from.email,
+      fromName: from.name,
+    });
+  } catch (err) {
+    console.warn(
+      `[agent-email] ${from.email} -> ${to} skipped:`,
+      (err as Error)?.message ?? err,
+    );
+  }
+}
