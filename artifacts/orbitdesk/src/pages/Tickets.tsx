@@ -9,7 +9,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { BulkUploadDialog } from "@/components/BulkUploadDialog";
 import { useMyPermissions } from "@/hooks/usePermissions";
 import { useAuthStore } from "@/lib/auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { readApi } from "@/lib/operations";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,6 +189,19 @@ export default function Tickets() {
   );
   const [priority, setPriority] = useState<string>("");
   const [view, setView] = useState("");
+  // Request category set by the requester's portal (e.g. magistick).
+  const [category, setCategory] = useState("");
+  const { data: categoryData } = useQuery({
+    queryKey: ["ticket-categories"],
+    queryFn: () =>
+      readApi<{ categories: { category: string; subcategory: string | null; count: number }[] }>(
+        "/api/tickets/categories",
+      ),
+    staleTime: 60_000,
+  });
+  const categoryNames = [
+    ...new Set((categoryData?.categories ?? []).map((c) => c.category)),
+  ];
   const [departmentId, setDepartmentId] = useState<string>(
     new URLSearchParams(queryString).get("departmentId") ?? "",
   );
@@ -244,6 +258,7 @@ export default function Tickets() {
       | undefined,
     departmentId: departmentId ? parseInt(departmentId) : undefined,
     view: view || undefined,
+    ...({ category: category || undefined } as Record<string, string | undefined>),
     unassignedDepartment:
       new URLSearchParams(queryString).get("unassignedDepartment") ?? undefined,
     search: search || undefined,
@@ -398,6 +413,27 @@ export default function Tickets() {
               ))}
             </SelectContent>
           </Select>
+          {categoryNames.length > 0 && (
+            <Select
+              value={category}
+              onValueChange={(v) => {
+                setCategory(v === "all" ? "" : v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-40 h-9">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categoryNames.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -556,6 +592,14 @@ export default function Tickets() {
                             </span>
                           )}
                         </div>
+                        {(ticket as any).category && (
+                          <div className="mt-0.5 text-xs font-medium text-primary">
+                            {(ticket as any).category}
+                            {(ticket as any).subcategory
+                              ? ` › ${(ticket as any).subcategory}`
+                              : ""}
+                          </div>
+                        )}
                         {ticket.tags.length > 0 && (
                           <div className="flex gap-1 mt-0.5 flex-wrap">
                             {ticket.tags.slice(0, 2).map((tag) => (

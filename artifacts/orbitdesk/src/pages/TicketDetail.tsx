@@ -664,6 +664,21 @@ export default function TicketDetail() {
               <Separator />
 
               <div className="space-y-2 text-sm">
+                {(ticket as any).category && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Category</span>
+                    <div className="text-right">
+                      <span className="font-medium text-foreground block">
+                        {(ticket as any).category}
+                      </span>
+                      {(ticket as any).subcategory && (
+                        <span className="text-xs text-muted-foreground">
+                          {(ticket as any).subcategory}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Created by</span>
                   <span className="font-medium text-foreground">

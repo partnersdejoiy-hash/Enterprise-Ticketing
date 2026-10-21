@@ -117,6 +117,14 @@ paths:
           in: query
           schema:
             type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: subcategory
+          in: query
+          schema:
+            type: string
         - name: search
           in: query
           schema:
@@ -693,6 +701,16 @@ components:
         assigneeName:
           type: string
           nullable: true
+        category:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: Request category chosen by the requester (e.g. "HR").
+        subcategory:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: Request subcategory (e.g. "Payslip query").
         createdById:
           type: integer
         createdByName:
@@ -771,6 +789,16 @@ components:
         assigneeId:
           type: integer
           nullable: true
+        category:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: Request category chosen by the requester (e.g. "HR").
+        subcategory:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: Request subcategory (e.g. "Payslip query").
         tags:
           type: array
           items:
@@ -805,6 +833,16 @@ components:
         assigneeId:
           type: integer
           nullable: true
+        category:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: Request category chosen by the requester (e.g. "HR").
+        subcategory:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: Request subcategory (e.g. "Payslip query").
         tags:
           type: array
           items:

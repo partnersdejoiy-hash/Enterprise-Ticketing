@@ -57,7 +57,8 @@ export async function ticketAccess(
   res: Response,
   next: NextFunction,
 ) {
-  if (req.params.ticketId === "bulk") return next();
+  // Collection routes under /tickets/* that are not ticket ids.
+  if (req.params.ticketId === "bulk" || req.params.ticketId === "categories") return next();
   let id = Number(req.params.ticketId || req.params.id);
   if (req.baseUrl.includes("/attachments/")) {
     const [attachment] = await db

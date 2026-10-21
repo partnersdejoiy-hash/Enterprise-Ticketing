@@ -106,6 +106,14 @@ function generateTicketNumber(): string {
   return `${prefix}-${num}`;
 }
 
+/** Optional request taxonomy text: trimmed, max 80 chars; undefined = not sent, null = clear. */
+function taxonomyValue(v: unknown): string | null | undefined | false {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  if (typeof v !== "string" || v.trim().length > 80) return false;
+  return v.trim();
+}
+
 // Cached check for the 006 migration column (AI-worker assignment).
 // Null = not checked yet; result is cached for the process lifetime.
 let hasAiWorkerColumn: boolean | null = null;
@@ -171,6 +179,8 @@ async function formatTicket(
     taggedUserIds: ticket.taggedUserIds,
     raisedForName: (ticket as any).raisedForName ?? null,
     raisedForEmail: (ticket as any).raisedForEmail ?? null,
+    category: ticket.category ?? null,
+    subcategory: ticket.subcategory ?? null,
     tags: ticket.tags ?? [],
     slaBreached: ticket.slaBreached,
     slaDeadline: ticket.slaDeadline?.toISOString() ?? null,
@@ -253,6 +263,15 @@ router.get(
         conditions.push(
           eq(ticketsTable.assigneeId, parseInt(assigneeId as string, 10)),
         );
+      for (const key of ["category", "subcategory"] as const) {
+        const v = req.query[key];
+        if (v === undefined) continue;
+        if (typeof v !== "string" || v.length > 80) {
+          res.status(400).json({ error: `Invalid ${key}` });
+          return;
+        }
+        conditions.push(eq(ticketsTable[key], v));
+      }
       if (search)
         conditions.push(
           or(
@@ -263,6 +282,14 @@ router.get(
             ),
             ilike(
               ticketsTable.raisedForName,
+              `%${String(search).slice(0, 150)}%`,
+            ),
+            ilike(
+              ticketsTable.category,
+              `%${String(search).slice(0, 150)}%`,
+            ),
+            ilike(
+              ticketsTable.subcategory,
               `%${String(search).slice(0, 150)}%`,
             ),
           )!,
@@ -363,6 +390,33 @@ router.get(
   },
 );
 
+/**
+ * GET /api/tickets/categories → the category/subcategory pairs in use on
+ * tickets the caller can see, with counts (for list filters).
+ */
+router.get(
+  "/tickets/categories",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const rows = await db
+        .select({
+          category: ticketsTable.category,
+          subcategory: ticketsTable.subcategory,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(ticketsTable)
+        .where(and(ticketScope(req.user!), sql`${ticketsTable.category} IS NOT NULL`))
+        .groupBy(ticketsTable.category, ticketsTable.subcategory)
+        .orderBy(ticketsTable.category, ticketsTable.subcategory);
+      res.json({ categories: rows });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  },
+);
+
 router.post(
   "/tickets",
   authMiddleware,
@@ -398,6 +452,15 @@ router.post(
         ccEmails = [],
       } = req.body;
       let departmentId: number | undefined = req.body.departmentId;
+      const category = taxonomyValue(req.body.category);
+      const subcategory = taxonomyValue(req.body.subcategory);
+      if (category === false || subcategory === false) {
+        res.status(400).json({
+          error: "Bad Request",
+          message: "Category and subcategory must be text up to 80 characters",
+        });
+        return;
+      }
 
       if (
         typeof subject !== "string" ||
@@ -537,6 +600,8 @@ router.post(
           raisedForName: raisedForName ?? null,
           raisedForEmail: raisedForEmail ?? null,
           ccEmails: Array.isArray(ccEmails) ? ccEmails : [],
+          category: category ?? null,
+          subcategory: subcategory ?? null,
         } as any)
         .returning();
 
@@ -785,6 +850,12 @@ router.patch(
         raisedForUserId,
         taggedUserIds,
       } = req.body;
+      const category = taxonomyValue(req.body.category);
+      const subcategory = taxonomyValue(req.body.subcategory);
+      if (category === false || subcategory === false) {
+        res.status(400).json({ error: "Invalid category" });
+        return;
+      }
 
       const [existing] = await db
         .select()
@@ -946,6 +1017,18 @@ router.patch(
         updates.assigneeId = assigneeId;
       }
       if (tags !== undefined) updates.tags = tags;
+      for (const [key, value] of [
+        ["category", category],
+        ["subcategory", subcategory],
+      ] as const) {
+        if (value === undefined || value === existing[key]) continue;
+        historyEntries.push({
+          action: `${key}_changed`,
+          oldValue: existing[key],
+          newValue: value,
+        });
+        updates[key] = value;
+      }
 
       const [updated] = await db
         .update(ticketsTable)

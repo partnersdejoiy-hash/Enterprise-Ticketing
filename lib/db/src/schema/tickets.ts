@@ -45,6 +45,10 @@ export const ticketsTable = pgTable("tickets", {
   raisedForName: text("raised_for_name"),
   raisedForEmail: text("raised_for_email"),
   ccEmails: text("cc_emails").array().notNull().default([]),
+  // Request taxonomy chosen by the requester (e.g. raised from magistick):
+  // category "HR", subcategory "Payslip query". Free text, max 80 chars each.
+  category: text("category"),
+  subcategory: text("subcategory"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

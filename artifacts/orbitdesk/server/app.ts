@@ -8,6 +8,7 @@ import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes/index.js";
+import { ensureSchemaPatches } from "./lib/schema-patches.js";
 import {
   generalApiLimiter,
   aiApiLimiter,
@@ -88,6 +89,17 @@ app.use("/api/ai", aiApiLimiter());
 app.use("/api/auth", authApiLimiter());
 app.use("/api", generalApiLimiter());
 
+// Additive schema patches (e.g. ticket category) must exist before any
+// ticket query; runs once per process. See lib/schema-patches.ts.
+app.use("/api", (_req, _res, next) => {
+  ensureSchemaPatches().then(
+    () => next(),
+    (err) => {
+      console.error("Schema patch failed:", err);
+      next();
+    },
+  );
+});
 app.use("/api", router);
 
 if (
