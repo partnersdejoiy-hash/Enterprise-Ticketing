@@ -50,6 +50,9 @@ await writeFile(path.join(output, "config.json"), JSON.stringify({
   routes: [
     { src: "/api(?:/.*)?", dest: "/api" },
     { handle: "filesystem" },
+    // A hashed asset that no longer exists (old tab after a deploy) must 404,
+    // not fall through to index.html, so the app can reload itself.
+    { src: "/assets/.*", status: 404 },
     { src: "/.*", dest: "/index.html" },
   ],
 }, null, 2));
