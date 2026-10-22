@@ -114,7 +114,7 @@ router.get("/sla/dashboard", async (req: AuthenticatedRequest, res) => {
          FROM tickets t
          JOIN ticket_sla s ON s.ticket_id = t.id
          LEFT JOIN sla_policies p ON p.id = s.policy_id
-         WHERE t.status = ANY(ARRAY['open','assigned','in_progress','waiting'])
+         WHERE t.status::text = ANY(ARRAY['open','assigned','in_progress','waiting'])
            AND ${scope}
        ),
        scored AS (

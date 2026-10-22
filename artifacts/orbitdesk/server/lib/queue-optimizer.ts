@@ -201,20 +201,20 @@ async function computeBreakdown(
 ): Promise<ScoreBreakdown> {
   const openQ = pool.query(
     `SELECT COUNT(*)::int AS n FROM tickets
-     WHERE assignee_id = $1 AND status = ANY($2::text[])`,
+     WHERE assignee_id = $1 AND status::text = ANY($2::text[])`,
     [agentId, OPEN_STATUSES],
   );
   const resolvedQ = pool.query(
     `SELECT COUNT(*)::int AS n FROM tickets
      WHERE assignee_id = $1
        AND ($2::int IS NULL OR department_id = $2)
-       AND status = ANY($3::text[])
+       AND status::text = ANY($3::text[])
        AND updated_at >= now() - interval '90 days'`,
     [agentId, departmentId, CLOSED_STATUSES],
   );
   const atRiskQ = pool.query(
     `SELECT COUNT(*)::int AS n FROM tickets
-     WHERE assignee_id = $1 AND status = ANY($2::text[])
+     WHERE assignee_id = $1 AND status::text = ANY($2::text[])
        AND (sla_breached = true
             OR (sla_deadline IS NOT NULL AND sla_deadline < now() + interval '2 hours'))`,
     [agentId, OPEN_STATUSES],

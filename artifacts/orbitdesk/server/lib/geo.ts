@@ -170,12 +170,12 @@ export async function getMarkerDetail(
       `SELECT id, ticket_number, subject, priority, status FROM tickets
        WHERE department_id = $1 AND status NOT IN ('resolved','closed')
        ORDER BY
-         CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+         CASE priority::text WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
          created_at DESC LIMIT 25`,
       [departmentId],
     ),
     pool.query(
-      `SELECT DISTINCT i.id, i.incident_number, i.title, i.severity, i.status
+      `SELECT DISTINCT i.id, i.incident_number, i.title, i.severity, i.status, i.started_at
        FROM incidents i
        JOIN incident_tickets it ON it.incident_id = i.id
        JOIN tickets t ON t.id = it.ticket_id

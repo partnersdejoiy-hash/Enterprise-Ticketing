@@ -97,8 +97,8 @@ router.get(
 
 async function liveOpsSection() {
   const { rows } = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE status = ANY($1::text[]))::int AS open_tickets,
-            COUNT(*) FILTER (WHERE status = ANY($1::text[]) AND assignee_id IS NULL)::int AS unassigned,
+    `SELECT COUNT(*) FILTER (WHERE status::text = ANY($1::text[]))::int AS open_tickets,
+            COUNT(*) FILTER (WHERE status::text = ANY($1::text[]) AND assignee_id IS NULL)::int AS unassigned,
             (SELECT COUNT(*)::int FROM incidents
              WHERE is_major AND deleted_at IS NULL AND status NOT IN ('resolved','closed')) AS major_incidents_open
      FROM tickets`,
@@ -122,7 +122,7 @@ async function slaSection() {
               NULLIF(EXTRACT(EPOCH FROM (s.resolution_due_at - t.created_at)), 0)) < 0.7)::int AS safe
      FROM ticket_sla s
      JOIN tickets t ON t.id = s.ticket_id
-     WHERE t.status = ANY($1::text[]) AND s.resolved_at IS NULL AND s.resolution_due_at IS NOT NULL`,
+     WHERE t.status::text = ANY($1::text[]) AND s.resolved_at IS NULL AND s.resolution_due_at IS NOT NULL`,
     [OPEN_STATUSES],
   );
   return {
@@ -137,7 +137,7 @@ async function triageSection() {
        (SELECT COUNT(*)::int FROM ai_triage_results
         WHERE created_at >= now() - interval '24 hours') AS completed_24h,
        (SELECT COUNT(*)::int FROM tickets t
-        WHERE t.status = ANY($1::text[])
+        WHERE t.status::text = ANY($1::text[])
           AND t.created_at >= now() - interval '24 hours'
           AND NOT EXISTS (SELECT 1 FROM ai_triage_results tr WHERE tr.ticket_id = t.id)
        ) AS pending`,
@@ -163,7 +163,7 @@ async function queueHealthSection() {
             COUNT(*)::int AS unassigned
      FROM tickets t
      LEFT JOIN departments d ON d.id = t.department_id
-     WHERE t.status = ANY($1::text[]) AND t.assignee_id IS NULL
+     WHERE t.status::text = ANY($1::text[]) AND t.assignee_id IS NULL
      GROUP BY 1 ORDER BY 2 DESC`,
     [OPEN_STATUSES],
   );

@@ -77,7 +77,7 @@ export async function collectBriefMetrics(
              NULLIF(EXTRACT(EPOCH FROM (s.resolution_due_at - t.created_at)), 0)) >= 0.7)::int AS at_risk_incl_critical
     FROM ticket_sla s
     JOIN tickets t ON t.id = s.ticket_id
-    WHERE t.status = ANY($1::text[]) AND s.resolved_at IS NULL AND s.resolution_due_at IS NOT NULL`;
+    WHERE t.status::text = ANY($1::text[]) AND s.resolved_at IS NULL AND s.resolution_due_at IS NOT NULL`;
   const { rows: slaRows } = await pool.query(slaQ, [OPEN_STATUSES]);
   q.sla_health = slaQ.trim();
   const sla = slaRows[0] as {
@@ -85,13 +85,13 @@ export async function collectBriefMetrics(
   };
 
   const backlogQ = `
-    SELECT COUNT(*)::int AS n FROM tickets WHERE status = ANY($1::text[])`;
+    SELECT COUNT(*)::int AS n FROM tickets WHERE status::text = ANY($1::text[])`;
   const { rows: bRows } = await pool.query(backlogQ, [OPEN_STATUSES]);
   q.backlog = backlogQ.trim();
 
   const unassignedQ = `
     SELECT COUNT(*)::int AS n FROM tickets
-    WHERE status = ANY($1::text[]) AND assignee_id IS NULL`;
+    WHERE status::text = ANY($1::text[]) AND assignee_id IS NULL`;
   const { rows: uRows } = await pool.query(unassignedQ, [OPEN_STATUSES]);
   q.unassigned = unassignedQ.trim();
 
@@ -129,7 +129,7 @@ export async function collectBriefMetrics(
   const workloadQ = `
     SELECT u.id AS agent_id, u.name AS agent_name, COUNT(t.id)::int AS open_tickets
     FROM users u
-    LEFT JOIN tickets t ON t.assignee_id = u.id AND t.status = ANY($1::text[])
+    LEFT JOIN tickets t ON t.assignee_id = u.id AND t.status::text = ANY($1::text[])
     WHERE u.role IN ('agent','manager')
     GROUP BY u.id, u.name
     HAVING COUNT(t.id) > 0
@@ -139,7 +139,7 @@ export async function collectBriefMetrics(
 
   const prioQ = `
     SELECT t.priority, COUNT(*)::int AS n FROM tickets t
-    WHERE t.status = ANY($1::text[]) GROUP BY 1`;
+    WHERE t.status::text = ANY($1::text[]) GROUP BY 1`;
   const { rows: pRows } = await pool.query(prioQ, [OPEN_STATUSES]);
   q.open_by_priority = prioQ.trim();
 
@@ -147,7 +147,7 @@ export async function collectBriefMetrics(
     SELECT COALESCE(d.name, 'unassigned') AS department, COUNT(t.id)::int AS open
     FROM tickets t
     LEFT JOIN departments d ON d.id = t.department_id
-    WHERE t.status = ANY($1::text[])
+    WHERE t.status::text = ANY($1::text[])
     GROUP BY 1 ORDER BY 2 DESC`;
   const { rows: dRows } = await pool.query(deptQ, [OPEN_STATUSES]);
   q.open_by_department = deptQ.trim();
