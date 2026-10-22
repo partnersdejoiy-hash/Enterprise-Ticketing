@@ -74,7 +74,7 @@ export default function PublicRequest() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-3.5 flex items-center gap-3 shadow-sm">
         <div className="relative flex-shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-700 to-stone-900 flex items-center justify-center shadow">
             <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-6 h-6 rounded-lg object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
           <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-orange-500 rounded-full flex items-center justify-center border border-white">
@@ -208,7 +208,7 @@ export default function PublicRequest() {
                     </div>
                   )}
 
-                  <Button type="submit" className="w-full h-11 gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 font-semibold" disabled={submitting}>
+                  <Button type="submit" className="w-full h-11 gap-2 bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 font-semibold" disabled={submitting}>
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     {submitting ? "Submitting…" : "Submit Request"}
                   </Button>
@@ -222,7 +222,7 @@ export default function PublicRequest() {
       <footer className="py-5 text-center border-t border-gray-200 bg-white">
         <div className="flex items-center justify-center gap-1.5">
           <span className="text-xs text-gray-400">Powered by</span>
-          <div className="w-4 h-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded flex items-center justify-center">
+          <div className="w-4 h-4 bg-gradient-to-br from-amber-700 to-stone-900 rounded flex items-center justify-center">
             <span className="text-[8px] font-black text-white">D</span>
           </div>
           <span className="text-xs font-bold text-gray-600">Dejoiy</span>

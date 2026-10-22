@@ -342,14 +342,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <img
               src="/dejoiy-official-logo.png"
               alt="Dejoiy"
-              className="w-16 h-11 rounded-lg object-contain bg-white"
+              className="w-16 h-11 rounded-xl object-contain bg-white ring-1 ring-sidebar-primary/30 shadow-[0_0_24px_-6px_rgba(255,196,0,0.55)]"
             />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">
+            <span className="text-[9px] font-bold text-sidebar-primary uppercase tracking-widest">
               Dejoiy
             </span>
-            <span className="font-bold text-sm text-sidebar-foreground tracking-tight">
+            <span className="font-serif font-semibold text-base text-sidebar-foreground tracking-tight">
               OrbitDesk
             </span>
           </div>
@@ -378,7 +378,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
                   isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
+                    ? "orbit-nav-active text-sidebar-accent-foreground font-medium"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 }`}
               >

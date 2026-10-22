@@ -74,56 +74,56 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Deep Indigo / Navy Palette */
-  --background: 210 20% 98%;
-  --foreground: 222 47% 11%;
+  /* DEJOIY family: charcoal shell, light-gray ground, brass actions, gold glow */
+  --background: 210 9% 96.5%;
+  --foreground: 0 0% 15%;
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 221 83% 53%;
+  --border: 220 5% 89%;
+  --input: 220 5% 87%;
+  --ring: 26 90% 37%;
 
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --card-foreground: 0 0% 15%;
+  --card-border: 220 5% 89%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
+  --popover-foreground: 0 0% 15%;
+  --popover-border: 220 5% 89%;
 
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
+  --primary: 26 90% 37%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222 47% 11.2%;
+  --secondary: 210 4% 92.5%;
+  --secondary-foreground: 0 0% 15%;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  --muted: 210 4% 92.5%;
+  --muted-foreground: 240 5% 38%;
 
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222 47% 11.2%;
+  --accent: 40 70% 92%;
+  --accent-foreground: 30 90% 22%;
 
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 4 71% 41%;
+  --destructive-foreground: 0 0% 100%;
 
-  --sidebar: 222 47% 11%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 221 83% 53%;
-  --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 217 33% 17%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 221 83% 53%;
+  --sidebar: 0 0% 15%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-border: 0 0% 22%;
+  --sidebar-primary: 46 100% 50%;
+  --sidebar-primary-foreground: 0 0% 15%;
+  --sidebar-accent: 0 0% 21%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 46 100% 50%;
 
-  --chart-1: 221 83% 53%;
-  --chart-2: 262 80% 50%;
-  --chart-3: 142 71% 45%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
+  --chart-1: 26 90% 37%;
+  --chart-2: 46 100% 50%;
+  --chart-3: 130 39% 30%;
+  --chart-4: 340 82% 52%;
+  --chart-5: 214 82% 51%;
 
-  --app-font-sans: "Inter", system-ui, sans-serif;
-  --app-font-serif: Georgia, serif;
+  --app-font-sans: "Outfit", system-ui, sans-serif;
+  --app-font-serif: "Fraunces", Georgia, serif;
   --app-font-mono: "JetBrains Mono", monospace;
-  --radius: 0.375rem; /* 6px */
+  --radius: 0.75rem;
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-xs: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -174,44 +174,44 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
+  --background: 0 0% 8%;
+  --foreground: 0 0% 96%;
 
-  --border: 217 33% 17%;
-  --input: 217 33% 17%;
-  --ring: 224 76% 48%;
+  --border: 0 0% 20%;
+  --input: 0 0% 22%;
+  --ring: 40 95% 55%;
 
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 17%;
+  --card: 0 0% 11%;
+  --card-foreground: 0 0% 96%;
+  --card-border: 0 0% 20%;
 
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 17%;
+  --popover: 0 0% 11%;
+  --popover-foreground: 0 0% 96%;
+  --popover-border: 0 0% 20%;
 
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
+  --primary: 40 95% 55%;
+  --primary-foreground: 0 0% 10%;
 
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 0 0% 17%;
+  --secondary-foreground: 0 0% 96%;
 
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 64%;
 
-  --accent: 217 33% 17%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 35 40% 18%;
+  --accent-foreground: 45 100% 80%;
 
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --sidebar: 222 47% 8%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 221 83% 53%;
-  --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 217 33% 17%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 221 83% 53%;
+  --sidebar: 0 0% 6%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-primary: 46 100% 50%;
+  --sidebar-primary-foreground: 0 0% 10%;
+  --sidebar-accent: 0 0% 15%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 46 100% 50%;
 
   --chart-1: 221 83% 53%;
   --chart-2: 262 80% 50%;
@@ -258,15 +258,6 @@
 }
 
 /* OrbitDesk: calm, information-rich service operations. */
-:root {
-  --background: 220 28% 97%;
-  --primary: 235 78% 58%;
-  --ring: 235 78% 58%;
-  --sidebar: 228 39% 10%;
-  --radius: 0.8rem;
-  --sidebar-accent: 229 30% 18%;
-  --sidebar-primary: 231 90% 78%;
-}
 button,
 a,
 input,
@@ -281,7 +272,7 @@ a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid #7374ee;
+  outline: 2px solid #b45309;
   outline-offset: 3px;
 }
 .workspace-page {
@@ -1309,4 +1300,338 @@ select:focus-visible {
 }
 .department-chips strong {
   color: #494b9f;
+}
+
+/* ───────────────────────────────────────────────────────────────
+   DEJOIY family theme (matches magistick): charcoal + brass + gold glow.
+   Overrides the earlier indigo values; layout rules above are untouched.
+   ─────────────────────────────────────────────────────────────── */
+body {
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+.workspace-heading h1,
+.panel-heading h2,
+.operations-banner h2,
+.login-story h1,
+.login-form-wrap h2,
+.password-card h1 {
+  font-family: var(--app-font-serif);
+  letter-spacing: -0.02em;
+}
+.eyebrow,
+.small-label {
+  color: #92400e;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.workspace-heading > div > p:last-child,
+.metric-card p,
+.queue-link p,
+.panel-footnote,
+.empty-copy,
+.workspace-timestamp {
+  color: #5c5c66;
+}
+
+/* Primary action: brass with a soft gold glow */
+.primary-action {
+  background: linear-gradient(180deg, #c2620f, #b45309);
+  border: 1px solid #92400e;
+  color: #fff;
+  box-shadow:
+    0 1px 0 #ffffff33 inset,
+    0 6px 16px -6px #b4530980;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.primary-action:hover {
+  background: linear-gradient(180deg, #b45309, #92400e);
+  box-shadow:
+    0 1px 0 #ffffff33 inset,
+    0 10px 24px -8px #ffc400aa;
+  transform: translateY(-1px);
+}
+.primary-action:active {
+  transform: translateY(0);
+}
+
+/* Dashboard banner: charcoal night sky with a gold glow and stars */
+.operations-banner {
+  background:
+    radial-gradient(ellipse 60% 90% at 88% 40%, #ffc40033 0, transparent 65%),
+    radial-gradient(ellipse 40% 60% at 70% 110%, #b4530940 0, transparent 70%),
+    radial-gradient(1px 1px at 12% 22%, #fff9 50%, transparent 51%),
+    radial-gradient(1px 1px at 34% 78%, #fff7 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 18%, #ffe58a 50%, transparent 51%),
+    radial-gradient(1px 1px at 76% 66%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 92% 14%, #fff6 50%, transparent 51%),
+    linear-gradient(135deg, #1c1c1c, #2b2622 60%, #262626);
+  border: 1px solid #ffffff12;
+  box-shadow: 0 24px 48px -24px #26262680;
+}
+.banner-label {
+  color: #ffe58a;
+}
+.banner-label > span {
+  background: #ffc400;
+  box-shadow: 0 0 10px #ffc400;
+}
+.operations-banner p {
+  color: #d4d4d8;
+}
+.operations-banner a {
+  color: #ffc400;
+  font-weight: 600;
+}
+.banner-visual > div {
+  border-color: #ffc40055;
+  background: linear-gradient(140deg, #ffc40018, transparent);
+  box-shadow: 0 0 40px -10px #ffc40044 inset;
+}
+.banner-visual > span {
+  color: #ffe58a;
+  text-shadow: 0 0 12px #ffc400;
+}
+
+/* Cards and panels */
+.metric-card,
+.workspace-panel {
+  border-color: #e1e2e4;
+  background: #fff;
+  box-shadow:
+    0 1px 2px #2626260f,
+    0 2px 8px -2px #2626260f;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.metric-card {
+  position: relative;
+  overflow: hidden;
+}
+.metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #b45309, #ffc400);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: #ead9b8;
+  box-shadow: 0 12px 32px -12px #26262647;
+}
+.metric-card:hover::before {
+  opacity: 1;
+}
+.metric-card > div,
+.panel-heading > svg,
+.queue-link > svg {
+  color: #71717a;
+}
+.metric-card strong,
+.panel-heading h2,
+.queue-link h3,
+.workspace-empty h3,
+.work-table td a strong,
+.login-form-wrap h2 {
+  color: #262626;
+}
+.queue-link,
+.panel-footnote {
+  border-top-color: #f0f0f1;
+}
+.queue-link:hover {
+  background: #fffaf0;
+}
+.queue-icon {
+  background: #faf0dc;
+  color: #b45309;
+}
+.queue-icon.mint {
+  color: #2f6b3b;
+  background: #e3f0e5;
+}
+.chart-column > div {
+  background: linear-gradient(#b45309, #ffc400);
+  box-shadow: 0 4px 12px -4px #ffc40088;
+}
+.chart-column small {
+  color: #71717a;
+}
+
+/* Tables */
+.work-table th {
+  background: #f5f6f7;
+  color: #5c5c66;
+  border-top-color: #ebeced;
+  border-bottom-color: #e1e2e4;
+}
+.work-table td {
+  border-bottom-color: #f0f0f1;
+  color: #46464f;
+}
+.work-table tr:hover td {
+  background: #fffaf0;
+}
+.work-table td a small {
+  color: #71717a;
+}
+.work-status {
+  border-color: #e4e4e7;
+  background: #f4f4f5;
+  color: #46464f;
+}
+.quiet-button {
+  border-color: #e1e2e4;
+  color: #46464f;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.quiet-button:hover {
+  border-color: #b45309;
+  color: #92400e;
+  background: #fffaf0;
+}
+.workspace-empty {
+  color: #71717a;
+}
+.workspace-empty a,
+.password-label button {
+  color: #b45309;
+}
+.verification-banner {
+  background: linear-gradient(105deg, #fff4cc, #faf0dc);
+  border-color: #f2dfa6;
+  color: #6b4e00;
+}
+.verification-banner h2 {
+  color: #3d2e00;
+}
+.verification-banner p {
+  color: #6b4e00;
+}
+.queue-search,
+.queue-toolbar select {
+  color: #71717a;
+}
+
+/* Login */
+.login-story {
+  background:
+    radial-gradient(ellipse 70% 60% at 100% 100%, #ffc40030, transparent 65%),
+    radial-gradient(ellipse 50% 50% at 0% 0%, #b4530930, transparent 70%),
+    radial-gradient(1px 1px at 18% 30%, #fff8 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 44% 62%, #ffe58a 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 22%, #fff7 50%, transparent 51%),
+    radial-gradient(1px 1px at 86% 48%, #fff6 50%, transparent 51%),
+    radial-gradient(1px 1px at 28% 86%, #fff7 50%, transparent 51%),
+    linear-gradient(160deg, #1c1c1c, #262626 55%, #2b2622);
+}
+.login-brand > span > span {
+  color: #ffc400;
+}
+.login-story h1 em {
+  font-style: italic;
+  color: #ffc400;
+  text-shadow: 0 0 28px #ffc40066;
+}
+.login-story-copy > p:last-of-type,
+.login-capabilities {
+  color: #d4d4d8;
+}
+.login-capabilities svg {
+  color: #ffc400;
+}
+.login-story footer {
+  color: #a1a1aa;
+}
+.login-orbits i {
+  border-color: #ffc40033;
+  animation: orbit-glow 6s ease-in-out infinite;
+}
+.login-orbits i:nth-child(2) {
+  animation-delay: -2s;
+}
+.login-orbits i:nth-child(3) {
+  animation-delay: -4s;
+}
+@keyframes orbit-glow {
+  0%, 100% { border-color: #ffc4001f; }
+  50% { border-color: #ffc40066; box-shadow: 0 0 24px -8px #ffc400; }
+}
+.login-form-side {
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, #fff4cc66, transparent 70%),
+    #fff;
+}
+.login-secure {
+  color: #92400e;
+  font-weight: 600;
+}
+.login-form-wrap > p,
+.login-form-wrap .login-note,
+.login-form-side footer {
+  color: #71717a;
+}
+.login-form-wrap label {
+  color: #46464f;
+}
+.login-form-wrap input {
+  border-color: #e1e2e4;
+  background: #fafafa;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.login-form-wrap input:focus {
+  outline: none;
+  border-color: #b45309;
+  background: #fff;
+  box-shadow: 0 0 0 4px #ffc40033;
+}
+
+/* Sidebar: gold active marker */
+.orbit-nav-active {
+  position: relative;
+  background: linear-gradient(90deg, #ffc4001f, #ffffff08);
+  box-shadow: inset 0 0 0 1px #ffc4002e;
+}
+.orbit-nav-active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #ffc400;
+  box-shadow: 0 0 12px #ffc400;
+}
+
+/* Dark mode keeps the same family on charcoal */
+.dark .metric-card,
+.dark .workspace-panel {
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+}
+.dark .metric-card strong,
+.dark .panel-heading h2,
+.dark .queue-link h3,
+.dark .work-table td a strong,
+.dark .workspace-empty h3 {
+  color: hsl(var(--foreground));
+}
+.dark .work-table th {
+  background: hsl(var(--muted));
+}
+.dark .work-table tr:hover td,
+.dark .queue-link:hover {
+  background: #ffc4000d;
+}
+.dark .eyebrow,
+.dark .small-label {
+  color: #ffc400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-orbits i { animation: none; }
+  .metric-card:hover, .primary-action:hover { transform: none; }
 }

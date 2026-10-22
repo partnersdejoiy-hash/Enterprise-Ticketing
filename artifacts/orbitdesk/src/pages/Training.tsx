@@ -139,7 +139,7 @@ export default function Training() {
     <AppLayout>
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-background">
-          <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center shadow-sm">
+          <div className="w-9 h-9 bg-gradient-to-br from-amber-700 to-stone-900 rounded-xl flex items-center justify-center shadow-sm">
             <BookOpen className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -147,7 +147,7 @@ export default function Training() {
             <p className="text-xs text-muted-foreground">Learn how to get the most out of Dejoiy OrbitDesk</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-blue-600 to-blue-800 rounded-md flex items-center justify-center">
+            <div className="w-6 h-6 bg-gradient-to-br from-amber-700 to-stone-900 rounded-md flex items-center justify-center">
               <span className="text-[10px] font-black text-white">D</span>
             </div>
             <Badge variant="secondary" className="text-xs">v1.0 by Dejoiy</Badge>
@@ -194,7 +194,7 @@ export default function Training() {
 
             {activeModule === "intro" && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-6 text-white relative overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-700 to-stone-900 rounded-2xl p-6 text-white relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
                   <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-8 -translate-x-8" />
                   <div className="relative">
