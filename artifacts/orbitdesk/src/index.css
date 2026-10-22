@@ -1635,3 +1635,7 @@ body {
   .login-orbits i { animation: none; }
   .metric-card:hover, .primary-action:hover { transform: none; }
 }
+.login-story .eyebrow,
+.operations-banner .eyebrow {
+  color: #ffc400;
+}
