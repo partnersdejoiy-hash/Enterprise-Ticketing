@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowRight,
@@ -11,7 +11,12 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
+/** it.dejoiy.com (or a /it link) signs in to DEJOIY IT; everything else to OrbitDesk. */
+export const isItHost = () =>
+  window.location.hostname.startsWith("it.") || window.location.pathname.startsWith("/it");
+
 export default function Login() {
+  const it = isItHost();
   const cache = useQueryClient();
   const [, navigate] = useLocation();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -22,6 +27,10 @@ export default function Login() {
   const [error, setError] = useState("");
   const [reset, setReset] = useState(false);
   const [message, setMessage] = useState("");
+  // Already signed in on it.dejoiy.com: go straight to the portal.
+  useEffect(() => {
+    if (it && useAuthStore.getState().token) navigate("/it");
+  }, [it, navigate]);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -53,7 +62,7 @@ export default function Login() {
       cache.clear();
       setAuth(result.token, result.user);
       navigate(
-        result.user.mustChangePassword ? "/change-password" : "/dashboard",
+        result.user.mustChangePassword ? "/change-password" : it ? "/it" : "/dashboard",
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to connect.");
@@ -67,21 +76,32 @@ export default function Login() {
         <div className="login-brand">
           <img src="/dejoiy-official-logo.png" alt="DEJOIY — Your Joy" />
           <span>
-            OrbitDesk<span>SERVICE OPERATIONS</span>
+            {it ? "DEJOIY IT" : "OrbitDesk"}<span>{it ? "IT SERVICES" : "SERVICE OPERATIONS"}</span>
           </span>
         </div>
         <div className="login-story-copy">
-          <p className="eyebrow">A CONNECTED WORKSPACE</p>
-          <h1>
-            Good work.
-            <br />
-            Great service.
-            <br />
-            <em>One orbit.</em>
-          </h1>
+          <p className="eyebrow">{it ? "IT SERVICES FOR EVERY DEJOIY TEAM" : "A CONNECTED WORKSPACE"}</p>
+          {it ? (
+            <h1>
+              Ask once.
+              <br />
+              Get it sorted.
+              <br />
+              <em>Back to work.</em>
+            </h1>
+          ) : (
+            <h1>
+              Good work.
+              <br />
+              Great service.
+              <br />
+              <em>One orbit.</em>
+            </h1>
+          )}
           <p>
-            A clear path from the first request to the final resolution. Built
-            for the people behind every experience.
+            {it
+              ? "Order laptops, headsets and software, get access, and report problems. Track every request to done."
+              : "A clear path from the first request to the final resolution. Built for the people behind every experience."}
           </p>
           <div className="login-capabilities">
             <span>

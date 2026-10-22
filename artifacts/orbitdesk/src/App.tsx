@@ -39,6 +39,7 @@ const ExecutiveBrief = lazy(() => import("@/pages/ExecutiveBrief"));
 const OperationsMap = lazy(() => import("@/pages/OperationsMap"));
 const Changes = lazy(() => import("@/pages/Changes"));
 const TicketGraph = lazy(() => import("@/pages/TicketGraph"));
+const ItApp = lazy(() => import("@/it/ItApp"));
 import { useAuthStore } from "@/lib/auth";
 
 setAuthTokenGetter(() => {
@@ -254,6 +255,16 @@ function Router() {
         </AuthGuard>
       </Route>
       <Route path="/request" component={PublicRequest} />
+      <Route path="/it">
+        <AuthGuard>
+          <ItApp />
+        </AuthGuard>
+      </Route>
+      <Route path="/it/*">
+        <AuthGuard>
+          <ItApp />
+        </AuthGuard>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
