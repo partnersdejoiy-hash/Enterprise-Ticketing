@@ -60,7 +60,10 @@ export async function indexMemory(
 
   if (sourceType === "ticket") {
     const { rows } = await pool.query(
-      `SELECT t.ticket_number, t.subject, t.description, t.status, t.resolution_notes,
+      `SELECT t.ticket_number, t.subject, t.description, t.status,
+              (SELECT c.content FROM ticket_comments c
+               WHERE c.ticket_id = t.id AND NOT c.is_internal
+               ORDER BY c.created_at DESC LIMIT 1) AS resolution_notes,
               d.name AS department
        FROM tickets t
        LEFT JOIN departments d ON d.id = t.department_id
@@ -76,7 +79,7 @@ export async function indexMemory(
     body = `Department: ${t.department ?? "unassigned"}\nDescription: ${t.description ?? ""}\nResolution: ${t.resolution_notes ?? "n/a"}`;
   } else if (sourceType === "incident") {
     const { rows } = await pool.query(
-      `SELECT id, title, description, status, resolution_notes FROM incidents WHERE id = $1 LIMIT 1`,
+      `SELECT id, title, description, status, NULL::text AS resolution_notes FROM incidents WHERE id = $1 LIMIT 1`,
       [Number(sourceId)],
     );
     const i = rows[0];

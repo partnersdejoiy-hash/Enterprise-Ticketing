@@ -41,7 +41,7 @@ export async function getNextBestAction(
     `SELECT t.id, t.ticket_number AS "ticketNumber", t.status, t.priority,
             t.assignee_id AS "assigneeId", t.department_id AS "departmentId",
             d.name AS "departmentName", t.sla_deadline AS "slaDeadline",
-            t.updated_at AS "updatedAt", t.tenant_id AS "tenantId"
+            t.updated_at AS "updatedAt", (SELECT id FROM tenants WHERE slug = 'default') AS "tenantId"
      FROM tickets t LEFT JOIN departments d ON d.id = t.department_id
      WHERE t.id = $1 LIMIT 1`,
     [ticketId],

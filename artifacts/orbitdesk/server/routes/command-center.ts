@@ -100,7 +100,8 @@ async function liveOpsSection() {
     `SELECT COUNT(*) FILTER (WHERE status = ANY($1::text[]))::int AS open_tickets,
             COUNT(*) FILTER (WHERE status = ANY($1::text[]) AND assignee_id IS NULL)::int AS unassigned,
             (SELECT COUNT(*)::int FROM incidents
-             WHERE is_major AND deleted_at IS NULL AND status NOT IN ('resolved','closed')) AS major_incidents_open`,
+             WHERE is_major AND deleted_at IS NULL AND status NOT IN ('resolved','closed')) AS major_incidents_open
+     FROM tickets`,
     [OPEN_STATUSES],
   );
   return rows[0];

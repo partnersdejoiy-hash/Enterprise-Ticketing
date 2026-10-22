@@ -171,7 +171,7 @@ async function findDepartment(
   name: string,
 ): Promise<{ id: number; name: string } | null> {
   const { rows } = await pool.query(
-    `SELECT id, name FROM departments WHERE lower(name) LIKE $1 AND deleted_at IS NULL LIMIT 1`,
+    `SELECT id, name FROM departments WHERE lower(name) LIKE $1 LIMIT 1`,
     [`%${name.toLowerCase()}%`],
   );
   return rows[0] ?? null;

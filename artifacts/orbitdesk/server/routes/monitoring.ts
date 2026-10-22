@@ -209,14 +209,12 @@ router.post(
         return;
       }
       const { key, keyHash, keyPrefix } = generateApiKey();
-      // usersTable's drizzle schema carries no tenant field; look it up raw
-      // (same approach as server/lib/root-cause.ts).
+      // Single-tenant install: keys belong to the default tenant.
       let creatorTenantId: number | null = null;
       if (req.user?.id) {
         try {
           const t = await pool.query(
-            `SELECT tenant_id FROM users WHERE id = $1 LIMIT 1`,
-            [req.user.id],
+            `SELECT id AS tenant_id FROM tenants WHERE slug = 'default' LIMIT 1`,
           );
           creatorTenantId = (t.rows[0]?.tenant_id ?? null) as number | null;
         } catch {

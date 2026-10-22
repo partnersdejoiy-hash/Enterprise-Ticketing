@@ -284,7 +284,7 @@ export async function triageTicket(
     `SELECT t.id, t.ticket_number AS "ticketNumber", t.subject,
             COALESCE(t.description,'') AS description, t.priority, t.status,
             t.department_id AS "departmentId", d.name AS "departmentName",
-            t.tenant_id AS "tenantId"
+            (SELECT id FROM tenants WHERE slug = 'default') AS "tenantId"
      FROM tickets t LEFT JOIN departments d ON d.id = t.department_id
      WHERE t.id = $1 LIMIT 1`,
     [ticketId],
