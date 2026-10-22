@@ -242,7 +242,7 @@ export async function completeAi(
     const r = await fetch(url, {
       method: "POST",
       redirect: "error",
-      signal: AbortSignal.timeout(18000),
+      signal: AbortSignal.timeout(45000),
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",

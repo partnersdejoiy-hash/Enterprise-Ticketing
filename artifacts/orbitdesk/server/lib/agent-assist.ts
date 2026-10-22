@@ -335,8 +335,19 @@ export async function analyzeTicket(
   const user = await getUser(actorId);
   const ticket = await getTicketRow(ticketId);
 
-  const [summaryRes, draftRes, similar, knowledge, sla] = await Promise.all([
-    runAnalysis({
+  // Context first (no AI), then the three AI calls in parallel so the request
+  // takes one model round-trip, not two. Summary and draft are optional: if
+  // one of them fails the rest of the analysis is still returned.
+  const [similar, knowledge, sla] = await Promise.all([
+    getSimilarTickets(ticketId, actorId),
+    getRelevantKnowledge(ticketId, actorId),
+    getSlaStatus(ticketId),
+  ]);
+  const shield = scanContent(`${ticket.subject}\n${ticket.description}`);
+  const optional = <T,>(p: Promise<T>) => p.catch(() => null);
+
+  const [summaryRes, draftRes, intel] = await Promise.all([
+    optional(runAnalysis({
       feature: "summarize",
       entityType: "ticket",
       entityId: String(ticketId),
@@ -352,8 +363,8 @@ export async function analyzeTicket(
         status: ticket.status,
         priority: ticket.priority,
       },
-    }),
-    runAnalysis({
+    })),
+    optional(runAnalysis({
       feature: "draft_response",
       entityType: "ticket",
       entityId: String(ticketId),
@@ -370,47 +381,40 @@ export async function analyzeTicket(
         priority: ticket.priority,
         requested_tone: "professional",
       },
-    }),
-    getSimilarTickets(ticketId, actorId),
-    getRelevantKnowledge(ticketId, actorId),
-    getSlaStatus(ticketId),
-  ]);
-
-  const shield = scanContent(`${ticket.subject}\n${ticket.description}`);
-
-  const intel = await runAnalysis({
-    feature: "ticket_intelligence",
-    entityType: "ticket",
-    entityId: String(ticketId),
-    actorId,
-    canAccess: canAccess(user, ticketId),
-    systemPrompt: INTEL_PROMPT,
-    untrustedInputs: [
-      { label: "ticket_subject", text: ticket.subject },
-      { label: "ticket_description", text: ticket.description },
-    ],
-    trustedContext: {
-      ticket_number: ticket.ticket_number,
-      status: ticket.status,
-      priority: ticket.priority,
-      ai_summary: summaryRes.result.summary,
-      similar_tickets: similar.map((s) => ({
-        id: s.id, ticket_number: s.ticketNumber, subject: s.subject,
-        status: s.status, similarity: s.similarity,
-      })),
-      knowledge_articles: knowledge.map((k) => ({ id: k.id, title: k.title })),
-      sla: {
-        health: sla.health, policy: sla.policyName,
-        percent_elapsed: sla.percentElapsed,
-        remaining_minutes: sla.remainingBusinessMinutes,
+    })),
+    runAnalysis({
+      feature: "ticket_intelligence",
+      entityType: "ticket",
+      entityId: String(ticketId),
+      actorId,
+      canAccess: canAccess(user, ticketId),
+      systemPrompt: INTEL_PROMPT,
+      untrustedInputs: [
+        { label: "ticket_subject", text: ticket.subject },
+        { label: "ticket_description", text: ticket.description },
+      ],
+      trustedContext: {
+        ticket_number: ticket.ticket_number,
+        status: ticket.status,
+        priority: ticket.priority,
+        similar_tickets: similar.map((s) => ({
+          id: s.id, ticket_number: s.ticketNumber, subject: s.subject,
+          status: s.status, similarity: s.similarity,
+        })),
+        knowledge_articles: knowledge.map((k) => ({ id: k.id, title: k.title })),
+        sla: {
+          health: sla.health, policy: sla.policyName,
+          percent_elapsed: sla.percentElapsed,
+          remaining_minutes: sla.remainingBusinessMinutes,
+        },
       },
-    },
-  });
+    }),
+  ]);
 
   const r = intel.result;
   return {
-    summary: (summaryRes.result.summary as string) ?? "",
-    key_points: (summaryRes.result.key_points as string[]) ?? [],
+    summary: (summaryRes?.result.summary as string) ?? "",
+    key_points: (summaryRes?.result.key_points as string[]) ?? [],
     intent: (r.intent as string) ?? "",
     priority_recommendation: (r.priority_recommendation as string) ?? ticket.priority,
     priority_reason: (r.priority_reason as string) ?? "",
@@ -424,7 +428,7 @@ export async function analyzeTicket(
     possible_root_cause: (r.possible_root_cause as string) ?? null,
     recommended_knowledge: knowledge,
     recommended_next_action: (r.recommended_next_action as string) ?? "",
-    draft_response: (draftRes.result.draft as string) ?? "",
+    draft_response: (draftRes?.result.draft as string) ?? "",
     confidence: intel.confidence,
     sources: intel.sources,
     security: {

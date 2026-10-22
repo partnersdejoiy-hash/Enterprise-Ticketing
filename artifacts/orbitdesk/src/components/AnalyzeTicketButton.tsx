@@ -26,7 +26,7 @@ async function api(path: string, body?: unknown, method = "POST") {
     headers: { "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const v = await r.json();
+  const v = await r.json().catch(() => ({ error: r.status === 504 ? "AI took too long. Please retry." : "Request failed" }));
   if (!r.ok) throw new Error(v.error || "Request failed");
   return v;
 }

@@ -36,7 +36,7 @@ await writeFile(path.join(functionDir, ".vc-config.json"), JSON.stringify({
   runtime: "nodejs24.x",
   handler: "index.mjs",
   launcherType: "Nodejs",
-  maxDuration: 30,
+  maxDuration: 60,
   environment: { NODE_ENV: "production", VERCEL: "1" },
 }, null, 2));
 // The bundled function is a single flattened file, so the server's
