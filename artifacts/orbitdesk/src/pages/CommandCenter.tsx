@@ -34,16 +34,16 @@ interface CommandSummary {
   generated_at: string;
   live_ops: { open_tickets: number; unassigned: number; major_incidents_open: number };
   sla_intelligence: { safe: number; at_risk: number; critical: number; breached: number };
-  ai_triage: { pending: number; today: number };
+  ai_triage: { pending: number; completed_24h: number };
   major_incidents: { id: number; incident_number: string; title: string; severity: string }[];
   service_health: Record<string, number>;
   queue_health: { department: string; unassigned: number }[];
   predictive_risks: { id: number; title: string; risk_level: string }[];
   security_alerts: { id: number; detection_type: string; risk_level: string }[];
-  automation_health: { total_24h: number; success_rate: number };
+  automation_health: { total: number; succeeded: number; failed: number; success_rate: number | null };
   ai_activity: { feature: string; count: number }[];
-  knowledge_gaps: { id: number; suggested_title: string; occurrence_count: number }[];
-  workload_forecast: { predicted_volume: number; confidence: string } | null;
+  knowledge_gaps: { open: number; top: { id: number; suggestedTitle: string; occurrenceCount: number }[] };
+  workload_forecast: { departmentId: number | null; departmentName: string; predictedVolume: number; confidence: string }[];
   executive_brief: { id: number; briefDate: string } | null;
 }
 
@@ -220,8 +220,8 @@ export default function CommandCenter() {
 
             <Section title="Automation Health" icon={<Zap className="h-4 w-4" />} link="/automation-rules" linkLabel="Rules →">
               <div className="flex gap-6">
-                <Stat label="Runs (24h)" value={data.automation_health.total_24h} />
-                <Stat label="Success" value={`${Math.round(data.automation_health.success_rate * 100)}%`} />
+                <Stat label="Runs (24h)" value={data.automation_health.total} />
+                <Stat label="Success" value={data.automation_health.success_rate == null ? "—" : `${data.automation_health.success_rate}%`} />
               </div>
             </Section>
 
@@ -241,22 +241,22 @@ export default function CommandCenter() {
             </Section>
 
             <Section title="Knowledge Gaps" icon={<FileText className="h-4 w-4" />} link="/knowledge" linkLabel="Knowledge →">
-              {data.knowledge_gaps.length === 0 ? (
+              {data.knowledge_gaps.top.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No gaps detected.</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {data.knowledge_gaps.slice(0, 4).map((g) => (
-                    <li key={g.id} className="text-sm truncate">{g.suggested_title}</li>
+                  {data.knowledge_gaps.top.slice(0, 4).map((g) => (
+                    <li key={g.id} className="text-sm truncate">{g.suggestedTitle}</li>
                   ))}
                 </ul>
               )}
             </Section>
 
             <Section title="Workload Forecast" icon={<TrendingUp className="h-4 w-4" />}>
-              {data.workload_forecast ? (
+              {data.workload_forecast.length > 0 ? (
                 <div className="flex gap-6 items-center">
-                  <Stat label="Expected today" value={data.workload_forecast.predicted_volume} />
-                  <Badge variant="outline">{data.workload_forecast.confidence} confidence</Badge>
+                  <Stat label="Expected today" value={data.workload_forecast.reduce((n, f) => n + f.predictedVolume, 0)} />
+                  <Badge variant="outline">{data.workload_forecast[0].confidence} confidence</Badge>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No forecast available.</p>

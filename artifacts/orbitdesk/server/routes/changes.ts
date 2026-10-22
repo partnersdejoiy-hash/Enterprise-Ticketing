@@ -42,7 +42,7 @@ router.get("/changes", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const status = String(req.query.status ?? "");
     const { rows } = await pool.query(
-      `SELECT id, change_number, title, change_type, risk, status,
+      `SELECT id, change_number, title, description, change_type, risk, status,
               scheduled_start, scheduled_end, created_by_id, created_at, updated_at
        FROM changes
        WHERE deleted_at IS NULL ${status ? "AND status = $1" : ""}
@@ -50,9 +50,7 @@ router.get("/changes", async (req: AuthenticatedRequest, res: Response) => {
       status ? [status] : [],
     );
     const user = { id: req.user!.id, role: req.user!.role, departmentId: req.user!.departmentId ?? null };
-    res.json(
-      rows.filter((c) => canViewChange(user, c)),
-    );
+    res.json({ changes: rows.filter((c) => canViewChange(user, c)) });
   } catch (err) {
     res.status(500).json({ error: "Failed to list changes" });
   }
