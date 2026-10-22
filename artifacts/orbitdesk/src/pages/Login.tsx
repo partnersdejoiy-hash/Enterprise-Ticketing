@@ -11,9 +11,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
-/** it.dejoiy.com (or a /it link) signs in to DEJOIY IT; everything else to OrbitDesk. */
+/** serve-me-now.dejoiy.com (or a /it link) signs in to DEJOIY IT; everything else to OrbitDesk. */
 export const isItHost = () =>
-  window.location.hostname.startsWith("it.") || window.location.pathname.startsWith("/it");
+  /^(serve-me-now|it)\./.test(window.location.hostname) || window.location.pathname.startsWith("/it");
 
 export default function Login() {
   const it = isItHost();
@@ -27,7 +27,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [reset, setReset] = useState(false);
   const [message, setMessage] = useState("");
-  // Already signed in on it.dejoiy.com: go straight to the portal.
+  // Already signed in on serve-me-now.dejoiy.com: go straight to the portal.
   useEffect(() => {
     if (it && useAuthStore.getState().token) navigate("/it");
   }, [it, navigate]);
