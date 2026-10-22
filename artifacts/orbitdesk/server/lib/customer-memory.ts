@@ -117,7 +117,9 @@ export async function getCustomerSummary(
   // All tickets involving this customer (created by / raised for / tagged).
   const { rows: ticketRows } = await pool.query(
     `SELECT t.id, t.ticket_number, t.subject, t.status, t.priority,
-            t.tags, t.created_at, t.updated_at, t.closed_at, t.resolution
+            t.tags, t.created_at, t.updated_at,
+            CASE WHEN t.status IN ('resolved','closed') THEN t.updated_at END AS closed_at,
+            NULL::text AS resolution
      FROM tickets t
      WHERE t.created_by_id = $1
         OR t.raised_for_user_id = $1

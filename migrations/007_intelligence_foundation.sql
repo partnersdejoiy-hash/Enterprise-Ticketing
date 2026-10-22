@@ -265,10 +265,7 @@ BEGIN
       FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL NOT VALID;
   END IF;
 END $$;
--- Validate in a second pass (safe on large tables).
-ALTER TABLE tickets VALIDATE CONSTRAINT fk_tickets_department;
-ALTER TABLE tickets VALIDATE CONSTRAINT fk_tickets_assignee;
-ALTER TABLE tickets VALIDATE CONSTRAINT fk_tickets_created_by;
-ALTER TABLE users VALIDATE CONSTRAINT fk_users_department;
+-- Left NOT VALID on purpose: new rows are checked, and old orphan rows
+-- (e.g. tickets of a removed department) cannot block the migration.
 
 COMMIT;

@@ -106,6 +106,16 @@ router.post("/run", async (_req, res) => {
 
     const results: { filename: string; status: string; error?: string }[] = [];
     for (const file of pending) {
+      // Databases created with drizzle push already have the base schema;
+      // record 000 as the baseline instead of re-creating existing types/tables.
+      if (file === "000_initial_schema.sql") {
+        const { rows: base } = await pool.query(`SELECT to_regclass('public.users') AS t`);
+        if (base[0]?.t) {
+          await pool.query(`INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`, [file]);
+          results.push({ filename: file, status: "baseline" });
+          continue;
+        }
+      }
       const sql = await fs.readFile(join(resolveMigrationsDir(), file), "utf8");
       const client = await pool.connect();
       try {
