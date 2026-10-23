@@ -234,8 +234,18 @@ export async function sendEmail(
         contentType: a.contentType,
       })),
     });
-  } catch (err) {
-    throw new Error("Email delivery failed");
+  } catch (err: any) {
+    // SMTP error class only (EAUTH, ETIMEDOUT, 535...) — never credentials.
+    const code = [err?.code, err?.responseCode].filter(Boolean).join(" ");
+    console.warn("SMTP send failed", {
+      code: err?.code,
+      responseCode: err?.responseCode,
+      command: err?.command,
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.secure,
+    });
+    throw new Error(code ? `Email delivery failed (${code})` : "Email delivery failed");
   }
 }
 

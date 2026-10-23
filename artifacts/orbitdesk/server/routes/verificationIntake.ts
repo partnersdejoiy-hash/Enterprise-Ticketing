@@ -10,7 +10,7 @@ import { Router } from "express";
 import { createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { constantEqual, digest, escapeHtml, rateLimit } from "../lib/security.js";
-import { sendEmail } from "../lib/emailService.js";
+import { sendEmail, sendTicketCreatedEmail } from "../lib/emailService.js";
 import { authMiddleware, requireAdmin } from "../middlewares/auth.js";
 import {
   businessSiteOidcEnabled,
@@ -340,6 +340,15 @@ async function saveIntake(b: any, res: any, limitKey: string) {
       `${bgv ? "BGV" : "Employment verification"} request — ${number}`,
       `<p>A website request is ready for review in OrbitDesk.</p><p>Ticket: <strong>${number}</strong><br>Employee: ${escapeHtml(b.employeeName)}<br>Requesting company: ${escapeHtml(b.company)}</p><p>Review the authorisation before any disclosure.</p>`,
     ).catch((e) => console.warn("Intake notification email failed", e?.message));
+    // Requester acknowledgement with the ticket number.
+    await sendTicketCreatedEmail({
+      ticketNumber: number,
+      subject: `${bgv ? "Background verification" : "Employment verification"} request — ${b.employeeName}`,
+      status: "open",
+      priority: "medium",
+      createdByName: b.company,
+      createdByEmail: b.email,
+    }).catch((e) => console.warn("Intake acknowledgement email failed", e?.message));
     res
       .status(201)
       .json({ success: true, ticketNumber: number, reference: number, duplicate: false });
