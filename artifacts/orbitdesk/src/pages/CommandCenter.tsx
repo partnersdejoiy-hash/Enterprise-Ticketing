@@ -35,11 +35,11 @@ interface CommandSummary {
   live_ops: { open_tickets: number; unassigned: number; major_incidents_open: number };
   sla_intelligence: { safe: number; at_risk: number; critical: number; breached: number };
   ai_triage: { pending: number; completed_24h: number };
-  major_incidents: { id: number; incident_number: string; title: string; severity: string }[];
+  major_incidents: { id: number; incidentNumber: string; title: string; severity: string }[];
   service_health: Record<string, number>;
   queue_health: { department: string; unassigned: number }[];
-  predictive_risks: { id: number; title: string; risk_level: string }[];
-  security_alerts: { id: number; detection_type: string; risk_level: string }[];
+  predictive_risks: { id: number; title: string; riskLevel: string }[];
+  security_alerts: { id: number; detectionType: string | null; riskLevel: string }[];
   automation_health: { total: number; succeeded: number; failed: number; success_rate: number | null };
   ai_activity: { feature: string; count: number }[];
   knowledge_gaps: { open: number; top: { id: number; suggestedTitle: string; occurrenceCount: number }[] };
@@ -208,10 +208,10 @@ export default function CommandCenter() {
                 <ul className="space-y-1.5">
                   {data.security_alerts.slice(0, 4).map((s) => (
                     <li key={s.id} className="text-sm flex items-center gap-2">
-                      <Badge variant={s.risk_level === "critical" ? "destructive" : "outline"} className="text-[10px]">
-                        {s.risk_level}
+                      <Badge variant={s.riskLevel === "critical" ? "destructive" : "outline"} className="text-[10px]">
+                        {s.riskLevel}
                       </Badge>
-                      <span className="truncate">{s.detection_type.replace(/_/g, " ")}</span>
+                      <span className="truncate">{(s.detectionType ?? "detection").replace(/_/g, " ")}</span>
                     </li>
                   ))}
                 </ul>
@@ -232,7 +232,7 @@ export default function CommandCenter() {
                 <ul className="space-y-1 text-sm">
                   {data.ai_activity.slice(0, 5).map((a) => (
                     <li key={a.feature} className="flex justify-between">
-                      <span className="truncate">{a.feature.replace(/_/g, " ")}</span>
+                      <span className="truncate">{(a.feature ?? "other").replace(/_/g, " ")}</span>
                       <Badge variant="outline">{a.count}</Badge>
                     </li>
                   ))}
@@ -255,7 +255,7 @@ export default function CommandCenter() {
             <Section title="Workload Forecast" icon={<TrendingUp className="h-4 w-4" />}>
               {data.workload_forecast.length > 0 ? (
                 <div className="flex gap-6 items-center">
-                  <Stat label="Expected today" value={data.workload_forecast.reduce((n, f) => n + f.predictedVolume, 0)} />
+                  <Stat label="Expected today" value={Math.round(data.workload_forecast.reduce((n, f) => n + Number(f.predictedVolume || 0), 0))} />
                   <Badge variant="outline">{data.workload_forecast[0].confidence} confidence</Badge>
                 </div>
               ) : (
