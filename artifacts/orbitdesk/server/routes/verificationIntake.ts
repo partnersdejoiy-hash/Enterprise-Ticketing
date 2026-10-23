@@ -9,7 +9,8 @@ import {
 import { Router } from "express";
 import { createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
-import { constantEqual, digest, rateLimit } from "../lib/security.js";
+import { constantEqual, digest, escapeHtml, rateLimit } from "../lib/security.js";
+import { sendEmail } from "../lib/emailService.js";
 import { authMiddleware, requireAdmin } from "../middlewares/auth.js";
 import {
   businessSiteOidcEnabled,
@@ -140,11 +141,57 @@ router.post("/integrations/business-site/verification", async (req, res) => {
     res.status(401).json({ error: "Invalid service authentication" });
     return;
   }
-  if (!(await rateLimit("business-intake", 120, 3600))) {
+  await saveIntake(req.body, res, "business-intake");
+});
+
+const INBOX: Record<string, string> = {
+  "employment-verification": "employment-verification@dejoiy.com",
+  "background-verification": "bgv@dejoiy.com",
+};
+const WEBSITE_ORIGINS = new Set([
+  "https://business.dejoiy.com",
+  "https://dejoiy.co.in",
+  "https://www.dejoiy.co.in",
+]);
+
+// Public intake for the website forms (business.dejoiy.com rewrites
+// /api/employee-verification here). Same validation, dedupe and ticket as the
+// signed service route; spam guards replace the service signature.
+router.post("/integrations/website/verification", async (req, res) => {
+  const origin = req.get("Origin") || "";
+  if (origin && !WEBSITE_ORIGINS.has(origin)) {
+    res.status(403).json({ error: "Invalid request origin" });
+    return;
+  }
+  const b = req.body && typeof req.body === "object" ? { ...req.body } : {};
+  // Honeypot field and minimum fill time, as on the website's own handler.
+  if (b.website || (Number(b.startedAt) && Date.now() - Number(b.startedAt) < 3000)) {
+    res.status(400).json({ error: "Please try again in a moment." });
+    return;
+  }
+  if (!types.includes(b.verificationType))
+    b.verificationType = /background|bgv/i.test(String(b.requestType || ""))
+      ? types[1]
+      : types[0];
+  if (b.employeeId == null) b.employeeId = "";
+  if (b.attachment && typeof b.attachment === "object")
+    b.attachment = { ...b.attachment, type: "application/pdf" };
+  const email = typeof b.email === "string" ? b.email.toLowerCase() : "";
+  if (
+    !(await rateLimit(`website-intake-ip:${req.ip}`, 10, 3600)) ||
+    !(await rateLimit(`website-intake-email:${email}`, 5, 3600))
+  ) {
+    res.status(429).json({ error: "Too many requests. Please try again later." });
+    return;
+  }
+  await saveIntake(b, res, "website-intake");
+});
+
+async function saveIntake(b: any, res: any, limitKey: string) {
+  if (!(await rateLimit(limitKey, 120, 3600))) {
     res.status(429).json({ error: "Intake rate limit reached" });
     return;
   }
-  const b = req.body;
   if (!validateIntake(b)) {
     res
       .status(400)
@@ -194,6 +241,7 @@ router.post("/integrations/business-site/verification", async (req, res) => {
       res.json({
         success: true,
         ticketNumber: existing.rows[0].ticket_number,
+        reference: existing.rows[0].ticket_number,
         duplicate: true,
       });
       return;
@@ -286,9 +334,15 @@ router.post("/integrations/business-site/verification", async (req, res) => {
     if (assignment?.kind === "human") await notifyTicket(ticket.id, "assigned");
     if (assignment?.kind === "ai")
       await sendAssignmentEmail(ticket.id, assignment);
+    // Team notification: ticket number only; evidence stays in OrbitDesk.
+    await sendEmail(
+      INBOX[b.verificationType],
+      `${bgv ? "BGV" : "Employment verification"} request — ${number}`,
+      `<p>A website request is ready for review in OrbitDesk.</p><p>Ticket: <strong>${number}</strong><br>Employee: ${escapeHtml(b.employeeName)}<br>Requesting company: ${escapeHtml(b.company)}</p><p>Review the authorisation before any disclosure.</p>`,
+    ).catch((e) => console.warn("Intake notification email failed", e?.message));
     res
       .status(201)
-      .json({ success: true, ticketNumber: number, duplicate: false });
+      .json({ success: true, ticketNumber: number, reference: number, duplicate: false });
   } catch {
     if (!released) await client.query("ROLLBACK");
     res.status(503).json({
@@ -297,5 +351,5 @@ router.post("/integrations/business-site/verification", async (req, res) => {
   } finally {
     if (!released) client.release();
   }
-});
+}
 export default router;
