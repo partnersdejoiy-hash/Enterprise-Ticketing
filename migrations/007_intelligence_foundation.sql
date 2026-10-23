@@ -256,10 +256,7 @@ BEGIN
     ALTER TABLE tickets ADD CONSTRAINT fk_tickets_assignee
       FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL NOT VALID;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tickets_created_by') THEN
-    ALTER TABLE tickets ADD CONSTRAINT fk_tickets_created_by
-      FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL NOT VALID;
-  END IF;
+  -- No FK on tickets.created_by_id: system-created tickets use 0.
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_department') THEN
     ALTER TABLE users ADD CONSTRAINT fk_users_department
       FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL NOT VALID;

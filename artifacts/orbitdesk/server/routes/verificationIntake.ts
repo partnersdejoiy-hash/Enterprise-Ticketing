@@ -343,7 +343,9 @@ async function saveIntake(b: any, res: any, limitKey: string) {
     res
       .status(201)
       .json({ success: true, ticketNumber: number, reference: number, duplicate: false });
-  } catch {
+  } catch (error: any) {
+    // Error code/message only; never the request body.
+    console.error("Verification intake failed", { code: error?.code, message: error?.message });
     if (!released) await client.query("ROLLBACK");
     res.status(503).json({
       error: "Could not save request. Retry with the same reference.",

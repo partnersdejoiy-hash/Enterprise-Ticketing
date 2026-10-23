@@ -10,6 +10,9 @@
 import { pool } from "@workspace/db";
 
 const PATCHES = [
+  // 007 added this FK, but system-created tickets (website intake) use
+  // created_by_id = 0, which is not a user row. Keep tickets.created_by_id free.
+  `ALTER TABLE tickets DROP CONSTRAINT IF EXISTS fk_tickets_created_by`,
   // 015_ticket_category.sql
   `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS category text`,
   `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS subcategory text`,
