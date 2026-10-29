@@ -6,7 +6,12 @@ const { Pool } = pg;
 
 // SUPABASE_DATABASE_URL (orbitdesk_app role, schema "helpdesk" in the DEJOIY BPO database)
 // wins; without it OrbitDesk keeps its old DATABASE_URL, so switching back is one env var.
-const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+// Forgive copy-paste slips in Vercel: spaces, wrapping quotes, or a pasted "KEY=" prefix.
+const url = (process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "")
+  .trim()
+  .replace(/^[A-Z_]+=/, "")
+  .replace(/^["'`]+|["'`]+$/g, "")
+  .trim();
 if (!url) {
   throw new Error(
     "SUPABASE_DATABASE_URL must be set. Did you forget to provision a database?",
