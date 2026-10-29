@@ -5,7 +5,7 @@ let application: Promise<typeof import("../artifacts/orbitdesk/server/app.js")> 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  if (!process.env.DATABASE_URL) {
+  if (!process.env.SUPABASE_DATABASE_URL && !process.env.DATABASE_URL) {
     res.statusCode = 503;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ error: "Workspace setup is incomplete. Please contact your administrator." }));

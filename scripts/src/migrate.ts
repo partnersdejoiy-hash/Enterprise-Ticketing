@@ -1,6 +1,6 @@
 import { pool } from "@workspace/db";
 import { readFile } from "node:fs/promises";
-const schema = await pool.query("SELECT to_regclass('public.users') as users");
+const schema = await pool.query("SELECT to_regclass('users') as users");
 if (!schema.rows[0].users)
   await pool.query(
     await readFile(

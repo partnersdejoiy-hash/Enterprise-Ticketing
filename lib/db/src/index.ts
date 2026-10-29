@@ -4,14 +4,17 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
+// SUPABASE_DATABASE_URL (orbitdesk_app role, schema "helpdesk" in the DEJOIY BPO database)
+// wins; without it OrbitDesk keeps its old DATABASE_URL, so switching back is one env var.
+const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+if (!url) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "SUPABASE_DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: url,
   max: process.env.VERCEL ? 3 : 10,
   idleTimeoutMillis: process.env.VERCEL ? 10_000 : 30_000,
   connectionTimeoutMillis: 5_000,
