@@ -73,19 +73,8 @@ export default function PublicRequest() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-3.5 flex items-center gap-3 shadow-sm">
-        <div className="relative flex-shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow">
-            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-6 h-6 rounded-lg object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          </div>
-          <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-orange-500 rounded-full flex items-center justify-center border border-white">
-            <span className="text-[6px] font-black text-white">D</span>
-          </div>
-        </div>
         <div>
-          <div className="flex items-center gap-1.5 leading-none">
-            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Dejoiy</span>
-            <span className="font-black text-base tracking-tight text-gray-900">OrbitDesk</span>
-          </div>
+          <img src="/brand/dejoiy-desk.svg" alt=":Dejoiy Desk" className="h-7 w-auto" />
           <span className="text-[11px] text-gray-500">Enterprise Ticketing System</span>
         </div>
       </header>
@@ -222,10 +211,7 @@ export default function PublicRequest() {
       <footer className="py-5 text-center border-t border-gray-200 bg-white">
         <div className="flex items-center justify-center gap-1.5">
           <span className="text-xs text-gray-400">Powered by</span>
-          <div className="w-4 h-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded flex items-center justify-center">
-            <span className="text-[8px] font-black text-white">D</span>
-          </div>
-          <span className="text-xs font-bold text-gray-600">Dejoiy</span>
+          <img src="/brand/dejoiy-wordmark.svg" alt=":Dejoiy" className="h-3 w-auto" />
         </div>
         <p className="text-[11px] text-gray-400 mt-0.5">&copy; {new Date().getFullYear()} Dejoiy. All rights reserved.</p>
       </footer>

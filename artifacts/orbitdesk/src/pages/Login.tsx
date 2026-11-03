@@ -158,20 +158,7 @@ export default function Login() {
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 min-w-0 bg-white">
         <div className="w-full max-w-[420px]">
           <div className="flex flex-col items-center mb-8 gap-2">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="relative">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg shadow-blue-200">
-                  <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-10 h-10 rounded-xl object-cover" />
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
-                  <span className="text-[9px] font-black text-white">D</span>
-                </div>
-              </div>
-              <div className="flex flex-col leading-tight">
-                <span className="text-xs font-bold text-blue-600 uppercase tracking-[0.2em]">Dejoiy</span>
-                <span className="font-black text-2xl tracking-tight text-gray-900">OrbitDesk</span>
-              </div>
-            </div>
+            <img src="/brand/dejoiy-desk.svg" alt=":Dejoiy Desk" className="h-10 w-auto mb-1" />
             <span className="text-sm text-gray-500 font-medium">Enterprise Ticketing System</span>
           </div>
 
@@ -274,12 +261,7 @@ export default function Login() {
           </Card>
 
           <div className="mt-6 flex flex-col items-center gap-1">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 bg-gradient-to-br from-blue-600 to-blue-800 rounded-md flex items-center justify-center">
-                <span className="text-[10px] font-black text-white">D</span>
-              </div>
-              <span className="text-sm font-bold text-gray-700 tracking-wide">Dejoiy</span>
-            </div>
+            <img src="/brand/dejoiy-wordmark.svg" alt=":Dejoiy" className="h-4 w-auto" />
             <p className="text-center text-xs text-gray-400">
               &copy; {new Date().getFullYear()} Dejoiy. All rights reserved.
             </p>

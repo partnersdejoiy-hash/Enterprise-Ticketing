@@ -180,16 +180,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <>
       <div className="h-14 flex items-center px-4 border-b border-sidebar-border flex-shrink-0">
         <div className="flex items-center gap-2.5 flex-1">
-          <div className="relative flex-shrink-0">
-            <img src="/dejoiy-logo.jpg" alt="Dejoiy" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full flex items-center justify-center border border-sidebar">
-              <span className="text-[8px] font-black text-white leading-none">D</span>
-            </div>
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Dejoiy</span>
-            <span className="font-bold text-sm text-sidebar-foreground tracking-tight">OrbitDesk</span>
-          </div>
+          <img src="/brand/d-desk-on-dark.svg" alt=":D Desk" className="h-7 w-auto" />
         </div>
         <button
           className="md:hidden p-1.5 rounded-md hover:bg-sidebar-accent/50 text-sidebar-foreground/60 transition-colors"
@@ -254,12 +245,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="pt-2.5 border-t border-sidebar-border/50 flex flex-col items-center gap-0.5">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-sidebar-foreground/40">Powered by</span>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded flex items-center justify-center">
-                <span className="text-[8px] font-black text-white leading-none">D</span>
-              </div>
-              <span className="text-[11px] font-bold text-sidebar-foreground/70 tracking-wide">Dejoiy</span>
-            </div>
+            <img src="/brand/dejoiy-wordmark-on-dark.svg" alt=":Dejoiy" className="h-3 w-auto opacity-70" />
           </div>
           <span className="text-[9px] text-sidebar-foreground/30">&copy; {new Date().getFullYear()} Dejoiy. All rights reserved.</span>
         </div>
